@@ -12,8 +12,14 @@ type Game struct {
 	Path    mapdata.Path
 	Enemies []*entities.Enemy
 
-	Wave WaveManager
-	Base Base
+	Wave  WaveManager
+	Base  Base
+	Speed float64
+
+	Score      Score
+	Difficulty Difficulty
+
+	Manager *GameManager
 }
 
 func NewGame() *Game {
@@ -32,21 +38,31 @@ func NewGame() *Game {
 		HP: 10,
 	}
 
+	g.Speed = 1.0
+	g.Difficulty = Difficulty{
+		SpeedMultiplier: 1.0,
+		SpawnMultiplier: 1.0,
+		CountBonus:      0,
+	}
+
 	g.Wave = WaveManager{
 		CurrentWave:    1,
 		TotalWaves:     5,
 		EnemiesPerWave: 5,
 
 		SpawnInterval: 1 * time.Second,
-		WaveCooldown:  5 * time.Second,
-		CooldownTimer: 5 * time.Second,
 	}
+
+	g.Manager = NewGameManager(g.Wave.TotalWaves, 5)
 
 	return g
 }
 
 func (g *Game) spawnEnemy() {
 	enemy := entities.NewEnemy(g.Path)
+
+	enemy.Speed *= g.Difficulty.SpeedMultiplier
+
 	g.Enemies = append(g.Enemies, enemy)
 
 	g.Wave.EnemiesSpawned++
@@ -63,28 +79,17 @@ func (g *Game) updateSpawning(dt float64) {
 		"Spawning:", w.Spawning,
 		"Spawned:", w.EnemiesSpawned,
 		"Alive:", w.EnemiesAlive,
-		"Cooldown:", w.CooldownTimer,
 	)
 
-	if !w.Spawning {
-		if w.EnemiesAlive > 0 {
-			return
-		}
-
-		if w.CurrentWave > w.TotalWaves {
-			return
-		}
-
-		w.CooldownTimer -= delta
-
-		if w.CooldownTimer <= 0 {
-			log.Println("Wave spawning started")
-
-			w.Spawning = true
-			w.EnemiesSpawned = 0
-			w.SpawnTimer = 0
-		}
+	if !g.Manager.IsSimulationRunning() {
 		return
+	}
+
+	if !w.Spawning && !w.SpawnFinished {
+		log.Println("Wave started")
+		w.Spawning = true
+		w.EnemiesSpawned = 0
+		w.SpawnTimer = 0
 	}
 
 	w.SpawnTimer += delta
@@ -97,6 +102,7 @@ func (g *Game) updateSpawning(dt float64) {
 	if w.EnemiesSpawned == w.EnemiesPerWave {
 		log.Println("Wave spawn finished")
 		w.Spawning = false
+		w.SpawnFinished = true
 	}
 }
 
@@ -109,6 +115,9 @@ func (g *Game) updateEnemies(dt float64) {
 		if e.ReachedBase {
 			g.Base.HP--
 			g.Wave.EnemiesAlive--
+			if g.Base.HP <= 0 {
+				g.Manager.OnBaseDestroyed()
+			}
 			continue
 		}
 
@@ -125,16 +134,52 @@ func (g *Game) updateWaveState() {
 
 		log.Println("Wave cleared")
 
+		g.Score.WavesCleared++
+		g.Score.Points += 100
+
+		g.Difficulty.SpeedMultiplier += 0.1
+		g.Difficulty.SpawnMultiplier += 0.05
+		g.Difficulty.CountBonus += 1
+
+		g.Manager.EndWave()
+		w.SpawnFinished = false
+
 		if w.CurrentWave < w.TotalWaves {
 			w.CurrentWave++
-			w.EnemiesPerWave += 2
-			w.CooldownTimer = w.WaveCooldown
+			w.EnemiesPerWave += 2 + g.Difficulty.CountBonus
+
+			w.SpawnInterval = time.Duration(float64(w.SpawnInterval) / g.Difficulty.SpawnMultiplier)
 		}
 	}
 }
 
 func (g *Game) Update(dt float64) {
-	g.updateSpawning(dt)
-	g.updateEnemies(dt)
+	scaled := dt * g.Speed
+
+	g.updateSpawning(scaled)
+	g.updateEnemies(scaled)
 	g.updateWaveState()
+}
+
+func (g *Game) Reset() {
+	g.Enemies = nil
+
+	g.Base.HP = 10
+
+	g.Wave = WaveManager{
+		CurrentWave:    1,
+		TotalWaves:     5,
+		EnemiesPerWave: 5,
+		SpawnInterval:  1 * time.Second,
+	}
+
+	g.Difficulty = Difficulty{
+		SpeedMultiplier: 1.0,
+		SpawnMultiplier: 1.0,
+		CountBonus:      0,
+	}
+
+	g.Score = Score{}
+
+	g.Manager.Reset()
 }

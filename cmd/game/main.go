@@ -40,8 +40,13 @@ func main() {
 		select {
 
 		case <-ticker.C:
-			g.Update(tickRate.Seconds())
+			dt := tickRate.Seconds()
 
+			g.Manager.Update(dt)
+
+			if g.Manager.IsSimulationRunning() {
+				g.Update(dt)
+			}
 			screen.Clear()
 			render.DrawGrid(screen, g.Grid)
 			render.DrawEnemies(screen, g.Enemies)
@@ -57,6 +62,23 @@ func main() {
 				case tcell.KeyEscape:
 					running = false
 					close(quit)
+
+				case tcell.KeyRune:
+					switch e.Rune() {
+					case '=': // if + then need to hit shift+= :/
+						g.Speed = min(4.0, g.Speed*2)
+
+					case '-':
+						g.Speed = max(0.25, g.Speed/2)
+
+					case 'p':
+						g.Manager.TogglePause()
+
+					case 'r':
+						if g.Manager.State == game.StateWon || g.Manager.State == game.StateLost {
+							g.Reset()
+						}
+					}
 				}
 			}
 		}

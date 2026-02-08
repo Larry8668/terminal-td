@@ -13,8 +13,8 @@ type WaveManager struct {
 	SpawnInterval time.Duration
 	SpawnTimer    time.Duration
 
-	WaveCooldown  time.Duration
-	CooldownTimer time.Duration
+	WaveCooldown time.Duration
 
-	Spawning bool
+	Spawning      bool
+	SpawnFinished bool
 }
