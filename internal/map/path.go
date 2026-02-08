@@ -27,7 +27,7 @@ func ApplyPath(grid *Grid, path Path) {
 		a := path.Points[i]
 		b := path.Points[i+1]
 
-		if a.X == b.Y {
+		if a.X == b.X {
 			start, end := min(a.Y, b.Y), max(a.Y, b.Y)
 			for y := start; y <= end; y++ {
 				grid.Tiles[y][a.X] = PathTile
