@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/gdamore/tcell/v2"
 	"log"
+	"os"
 	"terminal-td/internal/game"
 	"terminal-td/internal/render"
 	"time"
@@ -11,6 +12,9 @@ import (
 const tickRate = 100 * time.Millisecond
 
 func main() {
+	f, _ := os.Create("debug.log")
+	log.SetOutput(f)
+
 	screen, err := tcell.NewScreen()
 	if err != nil {
 		log.Fatal(err)
@@ -41,6 +45,7 @@ func main() {
 			screen.Clear()
 			render.DrawGrid(screen, g.Grid)
 			render.DrawEnemies(screen, g.Enemies)
+			render.DrawUI(screen, g)
 			screen.Show()
 
 		case ev := <-events:

@@ -12,6 +12,8 @@ type Enemy struct {
 
 	PathIndex int
 	Path      mapdata.Path
+
+	ReachedBase bool
 }
 
 func NewEnemy(path mapdata.Path) *Enemy {
@@ -26,6 +28,10 @@ func NewEnemy(path mapdata.Path) *Enemy {
 }
 
 func (e *Enemy) Update(dt float64) {
+	if e.PathIndex >= len(e.Path.Points) {
+		e.ReachedBase = true
+		return
+	}
 	if e.PathIndex >= len(e.Path.Points) {
 		return
 	}
