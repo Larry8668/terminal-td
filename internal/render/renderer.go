@@ -97,6 +97,11 @@ func DrawUI(screen tcell.Screen, g *game.Game) {
 	}
 }
 
+func DrawCursor(screen tcell.Screen, cursorX, cursorY, offsetX, offsetY int) {
+	style := tcell.StyleDefault.Foreground(tcell.ColorYellow).Bold(true)
+	screen.SetContent(offsetX+cursorX, offsetY+cursorY, '+', nil, style)
+}
+
 func drawText(screen tcell.Screen, x, y int, style tcell.Style, text string) {
 	for i, r := range text {
 		screen.SetContent(x+i, y, r, nil, style)

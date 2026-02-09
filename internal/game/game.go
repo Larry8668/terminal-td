@@ -20,6 +20,9 @@ type Game struct {
 	Difficulty Difficulty
 
 	Manager *GameManager
+
+	CursorX int
+	CursorY int
 }
 
 func NewGame() *Game {
@@ -32,6 +35,9 @@ func NewGame() *Game {
 	g := &Game{
 		Grid: grid,
 		Path: path,
+
+		CursorX: grid.Width / 2,
+		CursorY: grid.Height / 2,
 	}
 
 	g.Base = Base{
@@ -165,6 +171,9 @@ func (g *Game) Reset() {
 	g.Enemies = nil
 
 	g.Base.HP = 10
+
+	g.CursorX = g.Grid.Width / 2
+	g.CursorY = g.Grid.Height / 2
 
 	g.Wave = WaveManager{
 		CurrentWave:    1,

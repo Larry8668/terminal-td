@@ -63,6 +63,7 @@ func main() {
 			render.DrawGrid(screen, g.Grid, offsetX, offsetY)
 			render.DrawEnemies(screen, g.Enemies, offsetX, offsetY)
 			render.DrawUI(screen, g)
+			render.DrawCursor(screen, g.CursorX, g.CursorY, offsetX, offsetY)
 			screen.Show()
 
 		case ev := <-events:
@@ -75,8 +76,40 @@ func main() {
 					running = false
 					close(quit)
 
+				case tcell.KeyUp:
+					g.CursorY--
+					clampCursor(g)
+
+				case tcell.KeyDown:
+					g.CursorY++
+					clampCursor(g)
+
+				case tcell.KeyLeft:
+					g.CursorX--
+					clampCursor(g)
+
+				case tcell.KeyRight:
+					g.CursorX++
+					clampCursor(g)
+
 				case tcell.KeyRune:
 					switch e.Rune() {
+					case 'w', 'W':
+						g.CursorY--
+						clampCursor(g)
+
+					case 's', 'S':
+						g.CursorY++
+						clampCursor(g)
+
+					case 'a', 'A':
+						g.CursorX--
+						clampCursor(g)
+
+					case 'd', 'D':
+						g.CursorX++
+						clampCursor(g)
+
 					case '=': // if + then need to hit shift+= :/
 						g.Speed = min(4.0, g.Speed*2)
 
@@ -94,5 +127,21 @@ func main() {
 				}
 			}
 		}
+	}
+}
+
+func clampCursor(g *game.Game) {
+	if g.CursorX < 0 {
+		g.CursorX = 0
+	}
+	if g.CursorX >= g.Grid.Width {
+		g.CursorX = g.Grid.Width - 1
+	}
+
+	if g.CursorY < 0 {
+		g.CursorY = 0
+	}
+	if g.CursorY >= g.Grid.Height {
+		g.CursorY = g.Grid.Height - 1
 	}
 }
