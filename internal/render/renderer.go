@@ -191,6 +191,42 @@ func DrawRange(screen tcell.Screen, centerX, centerY int, rangeVal float64, offs
 	}
 }
 
+func DrawProjectiles(screen tcell.Screen, projectiles []*entities.Projectile, offsetX, offsetY int) {
+	style := tcell.StyleDefault.Foreground(tcell.ColorYellow)
+
+	for _, proj := range projectiles {
+		x := offsetX + int(proj.X)
+		y := offsetY + int(proj.Y)
+
+		screen.SetContent(x, y, '*', nil, style)
+	}
+}
+
+func DrawAttackLine(screen tcell.Screen, fromX, fromY int, toX, toY float64, offsetX, offsetY int) {
+	style := tcell.StyleDefault.Foreground(tcell.ColorYellow).Dim(true)
+
+	screenToX := offsetX + int(toX)
+	screenToY := offsetY + int(toY)
+	screenFromX := offsetX + fromX
+	screenFromY := offsetY + fromY
+
+	dx := screenToX - screenFromX
+	dy := screenToY - screenFromY
+
+	steps := max(abs(dx), abs(dy))
+	if steps == 0 {
+		return
+	}
+
+	for i := 0; i <= steps; i++ {
+		if i%2 == 0 {
+			x := screenFromX + (dx*i)/steps
+			y := screenFromY + (dy*i)/steps
+			screen.SetContent(x, y, '.', nil, style)
+		}
+	}
+}
+
 func drawText(screen tcell.Screen, x, y int, style tcell.Style, text string) {
 	for i, r := range text {
 		screen.SetContent(x+i, y, r, nil, style)
@@ -206,4 +242,11 @@ func FormatTime(t float64) string {
 	min := int(t) / 60
 	sec := int(t) % 60
 	return fmt.Sprintf("%02d:%02d", min, sec)
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }

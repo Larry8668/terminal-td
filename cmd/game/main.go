@@ -76,13 +76,18 @@ func main() {
 				tower := g.GetTowerAt(g.Manager.SelectedTowerX, g.Manager.SelectedTowerY)
 				if tower != nil {
 					render.DrawRange(screen, tower.X, tower.Y, tower.Range, offsetX, offsetY)
+
+					if tower.Target != nil && tower.Target.HP > 0 {
+						render.DrawAttackLine(screen, tower.X, tower.Y, tower.Target.X, tower.Target.Y, offsetX, offsetY)
+					}
 				}
 			}
 
+			render.DrawTower(screen, g.Towers, offsetX, offsetY)
 			render.DrawEnemies(screen, g.Enemies, offsetX, offsetY)
+			render.DrawProjectiles(screen, g.Projectiles, offsetX, offsetY)
 			render.DrawUI(screen, g)
 			render.DrawCursor(screen, g.CursorX, g.CursorY, offsetX, offsetY)
-			render.DrawTower(screen, g.Towers, offsetX, offsetY)
 			render.DrawBottomHUD(screen, g)
 			screen.Show()
 

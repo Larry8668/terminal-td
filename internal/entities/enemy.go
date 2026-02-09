@@ -9,6 +9,7 @@ type Enemy struct {
 	X     float64
 	Y     float64
 	Speed float64
+	HP    float64
 
 	PathIndex int
 	Path      mapdata.Path
@@ -23,6 +24,7 @@ func NewEnemy(path mapdata.Path) *Enemy {
 		X:     float64(start.X),
 		Y:     float64(start.Y),
 		Speed: 5,
+		HP:    20.0,
 		Path:  path,
 	}
 }

@@ -2,16 +2,18 @@ package game
 
 import (
 	"log"
+	// "math"
 	"terminal-td/internal/entities"
 	mapdata "terminal-td/internal/map"
 	"time"
 )
 
 type Game struct {
-	Grid    *mapdata.Grid
-	Path    mapdata.Path
-	Enemies []*entities.Enemy
-	Towers  []*entities.Tower
+	Grid        *mapdata.Grid
+	Path        mapdata.Path
+	Enemies     []*entities.Enemy
+	Towers      []*entities.Tower
+	Projectiles []*entities.Projectile
 
 	Wave  WaveManager
 	Base  Base
@@ -34,9 +36,10 @@ func NewGame() *Game {
 	mapdata.ApplyPath(grid, path)
 
 	g := &Game{
-		Grid:   grid,
-		Path:   path,
-		Towers: []*entities.Tower{},
+		Grid:        grid,
+		Path:        path,
+		Towers:      []*entities.Tower{},
+		Projectiles: []*entities.Projectile{},
 
 		Money: 500,
 
@@ -120,6 +123,11 @@ func (g *Game) updateEnemies(dt float64) {
 	alive := []*entities.Enemy{}
 
 	for _, e := range g.Enemies {
+		if e.HP <= 0 {
+			g.Wave.EnemiesAlive--
+			continue
+		}
+
 		e.Update(dt)
 
 		if e.ReachedBase {
@@ -167,6 +175,8 @@ func (g *Game) Update(dt float64) {
 	scaled := dt * g.Speed
 
 	g.updateSpawning(scaled)
+	g.updateTowers(scaled)
+	g.updateProjectiles(scaled)
 	g.updateEnemies(scaled)
 	g.updateWaveState()
 }
@@ -174,6 +184,7 @@ func (g *Game) Update(dt float64) {
 func (g *Game) Reset() {
 	g.Enemies = nil
 	g.Towers = []*entities.Tower{}
+	g.Projectiles = []*entities.Projectile{}
 
 	g.Base.HP = 10
 	g.Money = 500
@@ -247,4 +258,84 @@ func (g *Game) GetTowerAt(x, y int) *entities.Tower {
 		}
 	}
 	return nil
+}
+
+func (g *Game) isEnemyInRange(tower *entities.Tower, enemy *entities.Enemy) bool {
+	dist := tower.DistanceTo(enemy.X, enemy.Y)
+	return dist <= tower.Range && enemy.HP > 0
+}
+
+func (g *Game) updateTowers(dt float64) {
+	for _, tower := range g.Towers {
+		if tower.Cooldown > 0 {
+			tower.Cooldown = max(0, tower.Cooldown-dt)
+		}
+
+		if tower.Target == nil || !g.isEnemyInRange(tower, tower.Target) {
+			tower.Target = g.findClosestEnemyInRange(tower)
+		}
+
+		if tower.Cooldown <= 0 && tower.Target != nil {
+			g.fireTower(tower)
+			tower.Cooldown = 1.0 / tower.FireRate
+		}
+	}
+}
+
+func (g *Game) findClosestEnemyInRange(tower *entities.Tower) *entities.Enemy {
+	var closest *entities.Enemy
+	closestDist := tower.Range + 1.0
+
+	for _, enemy := range g.Enemies {
+		if enemy.HP <= 0 {
+			continue
+		}
+
+		dist := tower.DistanceTo(enemy.X, enemy.Y)
+		if dist <= tower.Range && dist < closestDist {
+			closest = enemy
+			closestDist = dist
+		}
+	}
+
+	return closest
+}
+
+func (g *Game) fireTower(tower *entities.Tower) {
+	if tower.Target == nil {
+		return
+	}
+
+	projectile := entities.NewProjectile(
+		float64(tower.X),
+		float64(tower.Y),
+		tower.Target,
+		20.0,
+		tower.Damage,
+	)
+
+	g.Projectiles = append(g.Projectiles, projectile)
+}
+
+func (g *Game) updateProjectiles(dt float64) {
+	active := []*entities.Projectile{}
+
+	for _, proj := range g.Projectiles {
+		proj.Update(dt)
+
+		if proj.HasHit {
+			if proj.TargetEnemy != nil && proj.TargetEnemy.HP > 0 {
+				proj.TargetEnemy.HP -= proj.Damage
+				if proj.TargetEnemy.HP <= 0 {
+					g.Money += 10
+					g.Score.Points += 10
+				}
+			}
+			continue
+		}
+		if proj.TargetEnemy != nil && proj.TargetEnemy.HP > 0 {
+			active = append(active, proj)
+		}
+	}
+	g.Projectiles = active
 }
