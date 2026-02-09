@@ -23,7 +23,7 @@ type Game struct {
 }
 
 func NewGame() *Game {
-	grid := mapdata.NewGrid(40, 20)
+	grid := mapdata.NewGrid(80, 25)
 	path := mapdata.DefaultPath()
 	mapdata.ApplyPath(grid, path)
 

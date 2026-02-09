@@ -48,8 +48,20 @@ func main() {
 				g.Update(dt)
 			}
 			screen.Clear()
-			render.DrawGrid(screen, g.Grid)
-			render.DrawEnemies(screen, g.Enemies)
+
+			w, h := screen.Size()
+			const uiHeight = 4
+			offsetX := (w - g.Grid.Width) / 2
+			if offsetX < 0 {
+				offsetX = 0
+			}
+			offsetY := uiHeight + (h-uiHeight-g.Grid.Height)/2
+			if offsetY < 0 {
+				offsetY = uiHeight
+			}
+
+			render.DrawGrid(screen, g.Grid, offsetX, offsetY)
+			render.DrawEnemies(screen, g.Enemies, offsetX, offsetY)
 			render.DrawUI(screen, g)
 			screen.Show()
 

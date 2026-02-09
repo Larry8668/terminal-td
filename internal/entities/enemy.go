@@ -32,9 +32,6 @@ func (e *Enemy) Update(dt float64) {
 		e.ReachedBase = true
 		return
 	}
-	if e.PathIndex >= len(e.Path.Points) {
-		return
-	}
 
 	target := e.Path.Points[e.PathIndex]
 
@@ -44,10 +41,18 @@ func (e *Enemy) Update(dt float64) {
 	dist := math.Sqrt(dx*dx + dy*dy)
 
 	if dist < 0.1 {
+		e.X = float64(target.X)
+		e.Y = float64(target.Y)
 		e.PathIndex++
 		return
 	}
 
-	e.X += (dx / dist) * e.Speed * dt
-	e.Y += (dy / dist) * e.Speed * dt
+	moveDist := e.Speed * dt
+
+	if moveDist > dist {
+		moveDist = dist
+	}
+
+	e.X += (dx / dist) * moveDist
+	e.Y += (dy / dist) * moveDist
 }
