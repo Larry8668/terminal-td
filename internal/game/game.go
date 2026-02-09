@@ -80,6 +80,7 @@ func (g *Game) spawnEnemy() {
 
 	g.Wave.EnemiesSpawned++
 	g.Wave.EnemiesAlive++
+	log.Printf("DEBUG: Enemy spawned (Wave %d, Total: %d, Alive: %d)", g.Wave.CurrentWave, g.Wave.EnemiesSpawned, g.Wave.EnemiesAlive)
 }
 
 func (g *Game) updateSpawning(dt float64) {
@@ -87,19 +88,12 @@ func (g *Game) updateSpawning(dt float64) {
 
 	delta := time.Duration(dt * float64(time.Second))
 
-	log.Println(
-		"Wave:", w.CurrentWave,
-		"Spawning:", w.Spawning,
-		"Spawned:", w.EnemiesSpawned,
-		"Alive:", w.EnemiesAlive,
-	)
-
 	if !g.Manager.IsSimulationRunning() {
 		return
 	}
 
 	if !w.Spawning && !w.SpawnFinished {
-		log.Println("Wave started")
+		log.Printf("DEBUG: Wave %d spawning started", w.CurrentWave)
 		w.Spawning = true
 		w.EnemiesSpawned = 0
 		w.SpawnTimer = 0
@@ -113,7 +107,7 @@ func (g *Game) updateSpawning(dt float64) {
 	}
 
 	if w.EnemiesSpawned == w.EnemiesPerWave {
-		log.Println("Wave spawn finished")
+		log.Printf("DEBUG: Wave %d spawn finished (%d enemies spawned)", w.CurrentWave, w.EnemiesSpawned)
 		w.Spawning = false
 		w.SpawnFinished = true
 	}
@@ -125,6 +119,7 @@ func (g *Game) updateEnemies(dt float64) {
 	for _, e := range g.Enemies {
 		if e.HP <= 0 {
 			g.Wave.EnemiesAlive--
+			log.Printf("DEBUG: Dead enemy removed (Alive: %d)", g.Wave.EnemiesAlive)
 			continue
 		}
 
@@ -133,7 +128,9 @@ func (g *Game) updateEnemies(dt float64) {
 		if e.ReachedBase {
 			g.Base.HP--
 			g.Wave.EnemiesAlive--
+			log.Printf("DEBUG: Enemy reached base (Base HP: %d, Enemies alive: %d)", g.Base.HP, g.Wave.EnemiesAlive)
 			if g.Base.HP <= 0 {
+				log.Println("DEBUG: Base destroyed - game lost")
 				g.Manager.OnBaseDestroyed()
 			}
 			continue
@@ -150,7 +147,7 @@ func (g *Game) updateWaveState() {
 
 	if !w.Spawning && w.EnemiesAlive == 0 && w.EnemiesSpawned == w.EnemiesPerWave {
 
-		log.Println("Wave cleared")
+		log.Printf("DEBUG: Wave %d cleared! Score: %d (+100)", w.CurrentWave, g.Score.Points+100)
 
 		g.Score.WavesCleared++
 		g.Score.Points += 100
@@ -230,6 +227,7 @@ func (g *Game) CanPlaceTower(x, y int) bool {
 
 func (g *Game) PlaceTower(towerType entities.TowerType) bool {
 	if !g.CanPlaceTower(g.CursorX, g.CursorY) {
+		log.Printf("DEBUG: Cannot place tower at (%d, %d) - invalid location", g.CursorX, g.CursorY)
 		return false
 	}
 
@@ -237,16 +235,19 @@ func (g *Game) PlaceTower(towerType entities.TowerType) bool {
 	template, exists := templates[towerType]
 
 	if !exists {
+		log.Printf("DEBUG: Tower type %d does not exist", towerType)
 		return false
 	}
 
 	if g.Money < template.Cost {
+		log.Printf("DEBUG: Insufficient funds to place tower (Have: %d, Need: %d)", g.Money, template.Cost)
 		return false
 	}
 
 	tower := entities.NewTower(g.CursorX, g.CursorY, towerType)
 	g.Towers = append(g.Towers, tower)
 	g.Money -= template.Cost
+	log.Printf("DEBUG: Tower placed at (%d, %d), Money remaining: %d, Total towers: %d", g.CursorX, g.CursorY, g.Money, len(g.Towers))
 
 	return true
 }
@@ -268,11 +269,15 @@ func (g *Game) isEnemyInRange(tower *entities.Tower, enemy *entities.Enemy) bool
 func (g *Game) updateTowers(dt float64) {
 	for _, tower := range g.Towers {
 		if tower.Cooldown > 0 {
-			tower.Cooldown = max(0, tower.Cooldown-dt)
+			tower.Cooldown = maxFloat(0, tower.Cooldown-dt)
 		}
 
 		if tower.Target == nil || !g.isEnemyInRange(tower, tower.Target) {
+			oldTarget := tower.Target
 			tower.Target = g.findClosestEnemyInRange(tower)
+			if tower.Target != oldTarget && tower.Target != nil {
+				log.Printf("DEBUG: Tower at (%d, %d) acquired new target", tower.X, tower.Y)
+			}
 		}
 
 		if tower.Cooldown <= 0 && tower.Target != nil {
@@ -315,6 +320,7 @@ func (g *Game) fireTower(tower *entities.Tower) {
 	)
 
 	g.Projectiles = append(g.Projectiles, projectile)
+	log.Printf("DEBUG: Tower at (%d, %d) fired at enemy (HP: %.1f), Projectiles: %d", tower.X, tower.Y, tower.Target.HP, len(g.Projectiles))
 }
 
 func (g *Game) updateProjectiles(dt float64) {
@@ -338,4 +344,11 @@ func (g *Game) updateProjectiles(dt float64) {
 		}
 	}
 	g.Projectiles = active
+}
+
+func maxFloat(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
 }

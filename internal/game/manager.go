@@ -8,11 +8,13 @@ type GameState int
 type InteractionMode int
 
 const (
-	StatePreWave GameState = iota
+	StateMenu GameState = iota
+	StatePreWave
 	StateInWave
 	StatePaused
 	StateWon
 	StateLost
+	StateQuitConfirm
 )
 
 const (
@@ -41,7 +43,7 @@ type GameManager struct {
 
 func NewGameManager(totalWaves int, interWaveDelay float64) *GameManager {
 	return &GameManager{
-		State:          StatePreWave,
+		State:          StateMenu,
 		Mode:           ModeNormal,
 		SelectedTowerX: -1,
 		SelectedTowerY: -1,
@@ -70,20 +72,24 @@ func (m *GameManager) Update(dt float64) {
 func (m *GameManager) StartWave() {
 	m.State = StateInWave
 	m.CurrentWave++
+	log.Printf("DEBUG: Wave %d started", m.CurrentWave)
 }
 
 func (m *GameManager) EndWave() {
 	if m.CurrentWave >= m.TotalWaves {
 		m.State = StateWon
+		log.Printf("DEBUG: All waves completed - game won! Run time: %.2fs", m.RunTime)
 		return
 	}
 
 	m.State = StatePreWave
 	m.InterWaveTimer = m.InterWaveDelay
+	log.Printf("DEBUG: Wave %d completed, waiting for next wave (Timer: %.1fs)", m.CurrentWave, m.InterWaveTimer)
 }
 
 func (m *GameManager) OnBaseDestroyed() {
 	m.State = StateLost
+	log.Printf("DEBUG: Base destroyed - game lost! Run time: %.2fs, Wave: %d/%d", m.RunTime, m.CurrentWave, m.TotalWaves)
 }
 
 func (m *GameManager) TogglePause() {
@@ -111,4 +117,5 @@ func (m *GameManager) Reset() {
 	m.RunTime = 0
 	m.InterWaveTimer = m.InterWaveDelay
 	m.Paused = false
+	log.Println("DEBUG: Game reset")
 }

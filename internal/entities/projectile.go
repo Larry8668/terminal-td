@@ -44,7 +44,7 @@ func (p *Projectile) Update(dt float64) {
 	dy := p.TargetY - p.Y
 	dist := math.Sqrt(dx*dx + dy*dy)
 
-	if dist < 0.8{
+	if dist < 0.8 {
 		p.X = p.TargetX
 		p.Y = p.TargetY
 		p.HasHit = true
