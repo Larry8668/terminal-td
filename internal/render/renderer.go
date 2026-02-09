@@ -3,6 +3,8 @@ package render
 import (
 	"fmt"
 	"github.com/gdamore/tcell/v2"
+	"math"
+	"strings"
 	"terminal-td/internal/entities"
 	"terminal-td/internal/game"
 	mapdata "terminal-td/internal/map"
@@ -100,6 +102,93 @@ func DrawUI(screen tcell.Screen, g *game.Game) {
 func DrawCursor(screen tcell.Screen, cursorX, cursorY, offsetX, offsetY int) {
 	style := tcell.StyleDefault.Foreground(tcell.ColorYellow).Bold(true)
 	screen.SetContent(offsetX+cursorX, offsetY+cursorY, '+', nil, style)
+}
+
+func DrawTower(screen tcell.Screen, towers []*entities.Tower, offsetX, offsetY int) {
+	for _, tower := range towers {
+		style := tcell.StyleDefault.Foreground(tcell.Color(tower.Color))
+		screen.SetContent(offsetX+tower.X, offsetY+tower.Y, tower.Symbol, nil, style)
+	}
+}
+
+func DrawBottomHUD(screen tcell.Screen, g *game.Game) {
+	w, h := screen.Size()
+
+	hudStartY := h - 5
+
+	whiteStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite)
+	redStyle := tcell.StyleDefault.Foreground(tcell.ColorRed)
+	cyanStyle := tcell.StyleDefault.Foreground(tcell.Color(6))
+	greenStyle := tcell.StyleDefault.Foreground(tcell.ColorGreen)
+
+	separator := strings.Repeat("_", w)
+	drawText(screen, 0, hudStartY, whiteStyle, separator)
+
+	switch g.Manager.Mode {
+	case game.ModeBuild:
+		templates := game.GetTowerTemplates()
+		template := templates[entities.TowerBasic]
+
+		canAfford := g.Money >= template.Cost
+		costStyle := whiteStyle
+
+		if !canAfford {
+			costStyle = redStyle
+		}
+
+		buildText := fmt.Sprintf("Build: [%c] %s - Cost: %d", template.Symbol, template.Name, template.Cost)
+		moneyText := fmt.Sprintf("Money: %d", g.Money)
+		helpText := "Press SPACE/ENTER to build, ESC/B to cancel"
+
+		drawText(screen, 0, hudStartY+1, costStyle, buildText)
+		drawText(screen, 0, hudStartY+2, whiteStyle, moneyText)
+		drawText(screen, 0, hudStartY+3, cyanStyle, helpText)
+
+		if g.CanPlaceTower(g.CursorX, g.CursorY) {
+			drawText(screen, 0, hudStartY+4, greenStyle, "✓ Valid placement")
+		} else {
+			drawText(screen, 0, hudStartY+4, redStyle, "✗ Invalid placement (on path or existing tower)")
+		}
+
+	case game.ModeSelect:
+		tower := g.GetTowerAt(g.Manager.SelectedTowerX, g.Manager.SelectedTowerY)
+		if tower != nil {
+			templates := game.GetTowerTemplates()
+			template := templates[tower.Type]
+
+			dps := tower.Damage * tower.FireRate
+
+			drawText(screen, 0, hudStartY+1, whiteStyle, fmt.Sprintf("Tower: [%c] %s", tower.Symbol, template.Name))
+			drawText(screen, 0, hudStartY+2, whiteStyle, fmt.Sprintf("DPS: %.1f | Damage: %.0f | Fire Rate: %.1f/s | Range: %.1f",
+				dps, tower.Damage, tower.FireRate, tower.Range))
+			drawText(screen, 0, hudStartY+3, whiteStyle, fmt.Sprintf("Cooldown: %.2fs", tower.Cooldown))
+			drawText(screen, 0, hudStartY+4, cyanStyle, "Press SPACE/ESC to deselect")
+		}
+	case game.ModeNormal:
+		moneyText := fmt.Sprintf("Money: %d", g.Money)
+		helpText := "Press SPACE on empty tile to build, on tower to select"
+		drawText(screen, 0, hudStartY+1, whiteStyle, moneyText)
+		drawText(screen, 0, hudStartY+2, cyanStyle, helpText)
+	}
+}
+
+func DrawRange(screen tcell.Screen, centerX, centerY int, rangeVal float64, offsetX, offsetY int) {
+	rangeInt := int(rangeVal)
+
+	for dy := -rangeInt; dy <= rangeInt; dy++ {
+		for dx := -rangeInt; dx <= rangeInt; dx++ {
+			dist := math.Sqrt(float64(dx*dx + dy*dy))
+			if dist <= rangeVal+0.5 && dist >= rangeVal-0.5 {
+				x := offsetX + centerX + dx
+				y := offsetY + centerY + dy
+
+				if x >= 0 && y >= 0 {
+					style := tcell.StyleDefault.Foreground(tcell.Color(6)).Dim(true)
+					screen.SetContent(x, y, '.', nil, style)
+				}
+			}
+		}
+	}
 }
 
 func drawText(screen tcell.Screen, x, y int, style tcell.Style, text string) {

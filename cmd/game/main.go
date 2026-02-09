@@ -4,6 +4,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"log"
 	"os"
+	"terminal-td/internal/entities"
 	"terminal-td/internal/game"
 	"terminal-td/internal/render"
 	"time"
@@ -50,20 +51,39 @@ func main() {
 			screen.Clear()
 
 			w, h := screen.Size()
+
 			const uiHeight = 4
+			const bottomHUDHeight = 5
 			offsetX := (w - g.Grid.Width) / 2
+
 			if offsetX < 0 {
 				offsetX = 0
 			}
-			offsetY := uiHeight + (h-uiHeight-g.Grid.Height)/2
+
+			offsetY := uiHeight + (h-uiHeight-bottomHUDHeight-g.Grid.Height)/2
+
 			if offsetY < 0 {
 				offsetY = uiHeight
 			}
 
 			render.DrawGrid(screen, g.Grid, offsetX, offsetY)
+
+			if g.Manager.Mode == game.ModeBuild {
+				templates := game.GetTowerTemplates()
+				template := templates[entities.TowerBasic]
+				render.DrawRange(screen, g.CursorX, g.CursorY, template.Range, offsetX, offsetY)
+			} else if g.Manager.Mode == game.ModeSelect {
+				tower := g.GetTowerAt(g.Manager.SelectedTowerX, g.Manager.SelectedTowerY)
+				if tower != nil {
+					render.DrawRange(screen, tower.X, tower.Y, tower.Range, offsetX, offsetY)
+				}
+			}
+
 			render.DrawEnemies(screen, g.Enemies, offsetX, offsetY)
 			render.DrawUI(screen, g)
 			render.DrawCursor(screen, g.CursorX, g.CursorY, offsetX, offsetY)
+			render.DrawTower(screen, g.Towers, offsetX, offsetY)
+			render.DrawBottomHUD(screen, g)
 			screen.Show()
 
 		case ev := <-events:
@@ -73,8 +93,12 @@ func main() {
 				switch e.Key() {
 
 				case tcell.KeyEscape:
-					running = false
-					close(quit)
+					if g.Manager.Mode != game.ModeNormal {
+						g.Manager.Mode = game.ModeNormal
+					} else {
+						running = false
+						close(quit)
+					}
 
 				case tcell.KeyUp:
 					g.CursorY--
@@ -122,6 +146,31 @@ func main() {
 					case 'r':
 						if g.Manager.State == game.StateWon || g.Manager.State == game.StateLost {
 							g.Reset()
+						}
+
+					case 'b', 'B':
+						if g.Manager.Mode == game.ModeNormal {
+							g.Manager.Mode = game.ModeBuild
+						} else {
+							g.Manager.Mode = game.ModeNormal
+						}
+
+					case ' ', '\n', '\r':
+						if g.Manager.Mode == game.ModeBuild {
+							if g.PlaceTower(entities.TowerBasic) {
+								g.Manager.Mode = game.ModeNormal
+							}
+						} else if g.Manager.Mode == game.ModeNormal {
+							tower := g.GetTowerAt(g.CursorX, g.CursorY)
+							if tower != nil {
+								g.Manager.Mode = game.ModeSelect
+								g.Manager.SelectedTowerX = g.CursorX
+								g.Manager.SelectedTowerY = g.CursorY
+							} else {
+								g.Manager.Mode = game.ModeBuild
+							}
+						} else if g.Manager.Mode == game.ModeSelect {
+							g.Manager.Mode = game.ModeNormal
 						}
 					}
 				}

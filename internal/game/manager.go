@@ -5,6 +5,7 @@ import (
 )
 
 type GameState int
+type InteractionMode int
 
 const (
 	StatePreWave GameState = iota
@@ -14,8 +15,18 @@ const (
 	StateLost
 )
 
+const (
+	ModeNormal InteractionMode = iota
+	ModeBuild
+	ModeSelect
+)
+
 type GameManager struct {
 	State GameState
+	Mode  InteractionMode
+
+	SelectedTowerX int
+	SelectedTowerY int
 
 	CurrentWave int
 	TotalWaves  int
@@ -31,6 +42,9 @@ type GameManager struct {
 func NewGameManager(totalWaves int, interWaveDelay float64) *GameManager {
 	return &GameManager{
 		State:          StatePreWave,
+		Mode:           ModeNormal,
+		SelectedTowerX: -1,
+		SelectedTowerY: -1,
 		TotalWaves:     totalWaves,
 		InterWaveDelay: interWaveDelay,
 		InterWaveTimer: 5,
@@ -90,6 +104,9 @@ func (m *GameManager) TogglePause() {
 
 func (m *GameManager) Reset() {
 	m.State = StatePreWave
+	m.Mode = ModeNormal
+	m.SelectedTowerX = -1
+	m.SelectedTowerY = -1
 	m.CurrentWave = 0
 	m.RunTime = 0
 	m.InterWaveTimer = m.InterWaveDelay
