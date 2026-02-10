@@ -22,22 +22,22 @@ func RunUpdate(release *Release) error {
 		return err
 	}
 
-	var newExeName string
-	if runtime.GOOS == "windows" {
-		newExeName = "terminal-td-new.exe"
-	} else {
-		newExeName = "terminal-td-new"
-	}
-	newExePath := filepath.Join(updatesDir, newExeName)
-
-	if err := DownloadUpdate(release, newExePath); err != nil {
+	zipPath := filepath.Join(updatesDir, "terminal-td-new.zip")
+	if err := DownloadZip(release, zipPath); err != nil {
 		return err
 	}
 
-	changelogPath, err := WriteChangelogFile(release.Body)
+	extractDir := filepath.Join(updatesDir, "extract")
+	if err := os.RemoveAll(extractDir); err != nil {
+		return fmt.Errorf("clear extract dir: %w", err)
+	}
+	if err := ExtractZip(zipPath, extractDir); err != nil {
+		return err
+	}
+
+	newExePath, err := FindGameExeInDir(extractDir)
 	if err != nil {
-		log.Printf("updater: write changelog: %v", err)
-		changelogPath = ""
+		return err
 	}
 
 	currentExe, err := os.Executable()
@@ -48,8 +48,23 @@ func RunUpdate(release *Release) error {
 	if err != nil {
 		return fmt.Errorf("resolve exe: %w", err)
 	}
+	currentDir := filepath.Dir(currentExe)
+	updaterPath := filepath.Join(currentDir, updaterName())
 
-	updaterPath := filepath.Join(filepath.Dir(currentExe), updaterName())
+	newUpdaterPath := filepath.Join(filepath.Dir(newExePath), updaterName())
+	if data, err := os.ReadFile(newUpdaterPath); err == nil {
+		dest := filepath.Join(currentDir, updaterName())
+		if err := os.WriteFile(dest, data, 0755); err != nil {
+			log.Printf("updater: copy new updater binary: %v", err)
+		}
+	}
+
+	changelogPath, err := WriteChangelogFile(release.Body)
+	if err != nil {
+		log.Printf("updater: write changelog: %v", err)
+		changelogPath = ""
+	}
+
 	cmd := exec.Command(updaterPath,
 		"-current", currentExe,
 		"-new", newExePath,

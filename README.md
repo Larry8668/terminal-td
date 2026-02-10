@@ -78,8 +78,8 @@ GOOS=darwin GOARCH=amd64 go build -o terminal-td cmd/game/main.go
 
 Or use the [build script](build.sh) to build for all platforms.
 
-**Build script:** `./build.sh [platform]` builds the game and updater for each platform into `builds/<platform>/` (game binary + `terminal-td-updater` + `readme.txt`). Default `all`; use `./build.sh --help` for options.
+**Build script:** `./build.sh [platform]` produces versioned folders and zips in `builds/` (e.g. `terminal-td-v0.1.2-windows-amd64/` and `terminal-td-v0.1.2-windows-amd64.zip`). Each folder/zip contains the game binary, `terminal-td-updater`, and `readme.txt`. Default `all`; use `./build.sh --help` for options.
 
-**Auto-update:** With "Check for updates" on in Settings, the game notifies when a newer release exists. Choosing "Update available" downloads the new binary and restarts. Requires the updater binary next to the game (included in build output).
+**Auto-update:** With "Check for updates" on in Settings, the game notifies when a newer release exists. Choosing "Update available" downloads the zip for the current platform, extracts it, replaces the game and updater, then restarts.
 
 ---

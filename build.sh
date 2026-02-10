@@ -26,7 +26,7 @@ EOF
 }
 
 build_windows() {
-	local dir="$BUILD_DIR/windows-amd64"
+	local dir="$BUILD_DIR/terminal-td-${VERSION}-windows-amd64"
 	mkdir -p "$dir"
 	echo "Building for Windows (amd64)..."
 	GOOS=windows GOARCH=amd64 go build -o "$dir/terminal-td-windows.exe" cmd/game/main.go
@@ -35,7 +35,7 @@ build_windows() {
 }
 
 build_linux() {
-	local dir="$BUILD_DIR/linux-amd64"
+	local dir="$BUILD_DIR/terminal-td-${VERSION}-linux-amd64"
 	mkdir -p "$dir"
 	echo "Building for Linux (amd64)..."
 	GOOS=linux GOARCH=amd64 go build -o "$dir/terminal-td-linux" cmd/game/main.go
@@ -44,7 +44,7 @@ build_linux() {
 }
 
 build_mac_intel() {
-	local dir="$BUILD_DIR/darwin-amd64"
+	local dir="$BUILD_DIR/terminal-td-${VERSION}-darwin-amd64"
 	mkdir -p "$dir"
 	echo "Building for macOS Intel (amd64)..."
 	GOOS=darwin GOARCH=amd64 go build -o "$dir/terminal-td-mac-intel" cmd/game/main.go
@@ -53,7 +53,7 @@ build_mac_intel() {
 }
 
 build_mac_arm() {
-	local dir="$BUILD_DIR/darwin-arm64"
+	local dir="$BUILD_DIR/terminal-td-${VERSION}-darwin-arm64"
 	mkdir -p "$dir"
 	echo "Building for macOS ARM (arm64)..."
 	GOOS=darwin GOARCH=arm64 go build -o "$dir/terminal-td-mac-arm" cmd/game/main.go
@@ -104,5 +104,5 @@ case "$PLATFORM" in
 esac
 
 echo ""
-echo "Done! Game + updater per platform in $BUILD_DIR/"
+echo "Done! Versioned folders in $BUILD_DIR/"
 for d in "$BUILD_DIR"/*/; do [ -d "$d" ] && echo "  $d" && ls -lh "$d" 2>/dev/null; done
