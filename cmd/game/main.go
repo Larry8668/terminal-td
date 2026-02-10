@@ -82,6 +82,8 @@ func main() {
 	menuSelection := render.MenuStart
 	showControls := false
 	showSettings := false
+	showChangelog := false
+	changelogContent := ""
 	quitConfirmYes := false
 
 	handleMenuSelect := func() bool {
@@ -99,7 +101,11 @@ func main() {
 			showControls = false
 			return false
 		}
-		if menuSelection == 3 && updateAvailable {
+		if showChangelog {
+			showChangelog = false
+			return false
+		}
+		if menuSelection == render.MenuUpdateAvailable && updateAvailable {
 			log.Println("DEBUG: Starting update")
 			if latestRelease != nil {
 				if err := updater.RunUpdate(latestRelease); err != nil {
@@ -108,7 +114,7 @@ func main() {
 			}
 			return true
 		}
-		if menuSelection == 3 && !updateAvailable || menuSelection == 4 {
+		if menuSelection == render.MenuUpdateAvailable && !updateAvailable || menuSelection == render.MenuQuit {
 			log.Println("DEBUG: Quitting from menu")
 			running = false
 			close(quit)
@@ -125,6 +131,17 @@ func main() {
 		case render.MenuSettings:
 			log.Println("DEBUG: Showing settings")
 			showSettings = true
+		case render.MenuChangelog:
+			release, err := updater.FetchLatest(updater.DefaultOwner, updater.DefaultRepo)
+			if err != nil {
+				changelogContent = "Failed to load changelog: " + err.Error()
+			} else {
+				changelogContent = strings.TrimSpace(release.Body)
+				if changelogContent == "" {
+					changelogContent = "No changelog for this release."
+				}
+			}
+			showChangelog = true
 		}
 		return false
 	}
@@ -145,6 +162,8 @@ func main() {
 					render.DrawSettings(screen, cfg.CheckForUpdates)
 				} else if showControls {
 					render.DrawControls(screen)
+				} else if showChangelog {
+					render.DrawChangelog(screen, changelogContent)
 				} else {
 					render.DrawMainMenu(screen, menuSelection, updateAvailable, latestVersion)
 				}
@@ -216,6 +235,8 @@ func main() {
 						} else if showControls {
 							log.Println("DEBUG: Exiting controls screen")
 							showControls = false
+						} else if showChangelog {
+							showChangelog = false
 						} else {
 							log.Println("DEBUG: Quitting from menu")
 							running = false
@@ -236,7 +257,7 @@ func main() {
 				case tcell.KeyUp:
 					if g.Manager.State == game.StateQuitConfirm {
 						quitConfirmYes = true
-					} else if g.Manager.State == game.StateMenu && !showControls && !showSettings {
+					} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog {
 						if menuSelection > render.MenuStart {
 							menuSelection--
 						}
@@ -248,7 +269,7 @@ func main() {
 				case tcell.KeyDown:
 					if g.Manager.State == game.StateQuitConfirm {
 						quitConfirmYes = false
-					} else if g.Manager.State == game.StateMenu && !showControls && !showSettings {
+					} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog {
 						maxOpt := render.MaxMenuOption(updateAvailable)
 						if menuSelection < maxOpt {
 							menuSelection++
@@ -293,7 +314,7 @@ func main() {
 					case 'w', 'W':
 						if g.Manager.State == game.StateQuitConfirm {
 							quitConfirmYes = true
-						} else if g.Manager.State == game.StateMenu && !showControls && !showSettings {
+						} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog {
 							if menuSelection > render.MenuStart {
 								menuSelection--
 							}
@@ -305,7 +326,7 @@ func main() {
 					case 's', 'S':
 						if g.Manager.State == game.StateQuitConfirm {
 							quitConfirmYes = false
-						} else if g.Manager.State == game.StateMenu && !showControls && !showSettings {
+						} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog {
 							maxOpt := render.MaxMenuOption(updateAvailable)
 							if menuSelection < maxOpt {
 								menuSelection++

@@ -14,6 +14,7 @@ const (
 	MenuStart MenuOption = iota
 	MenuControls
 	MenuSettings
+	MenuChangelog
 	MenuUpdateAvailable
 	MenuQuit
 )
@@ -72,6 +73,17 @@ func DrawMainMenu(screen tcell.Screen, selectedOption MenuOption, updateAvailabl
 	}
 	row += 2
 
+	// Changelog
+	changelogText := "CHANGELOG"
+	style = whiteStyle
+	if selectedOption == MenuChangelog {
+		style = yellowStyle
+		drawText(screen, centerX-len(changelogText)/2-2, row, style, "> "+changelogText)
+	} else {
+		drawText(screen, centerX-len(changelogText)/2, row, style, changelogText)
+	}
+	row += 2
+
 	// Update available (only if update available)
 	if updateAvailable {
 		updateText := fmt.Sprintf("UPDATE AVAILABLE (%s)", latestVersion)
@@ -105,7 +117,7 @@ func MaxMenuOption(updateAvailable bool) MenuOption {
 	if updateAvailable {
 		return MenuQuit
 	}
-	return MenuUpdateAvailable // Quit is at index 3 when update row is hidden
+	return MenuChangelog + 1 // Quit is at index 4 when update row is hidden
 }
 
 func DrawSettings(screen tcell.Screen, checkForUpdates bool) {
