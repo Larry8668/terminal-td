@@ -218,40 +218,30 @@ func DrawControls(screen tcell.Screen) {
 	}
 }
 
-func DrawQuitConfirm(screen tcell.Screen) {
+func DrawQuitConfirm(screen tcell.Screen, selectedYes bool) {
 	w, h := screen.Size()
 
 	whiteStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite)
-	redStyle := tcell.StyleDefault.Foreground(tcell.ColorRed)
 	cyanStyle := tcell.StyleDefault.Foreground(tcell.Color(6))
+	yellowStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow)
 
-	// Dialog box
 	message := "Are you sure you want to quit?"
-	yesText := "YES (Y)"
-	noText := "NO (N or ESC)"
+	yesLabel := "YES"
+	noLabel := "NO"
+	hint := "Use ARROW KEYS or W/S to navigate, SPACE to select"
 
-	boxWidth := 50
-	boxHeight := 7
-	boxX := (w - boxWidth) / 2
-	boxY := (h - boxHeight) / 2
+	msgX := (w - len(message)) / 2
+	row := h/2 - 2
+	drawText(screen, msgX, row, whiteStyle, message)
 
-	// Draw box border
-	for x := boxX; x < boxX+boxWidth; x++ {
-		screen.SetContent(x, boxY, '-', nil, whiteStyle)
-		screen.SetContent(x, boxY+boxHeight-1, '-', nil, whiteStyle)
+	optX := w/2 - 2
+	if selectedYes {
+		drawText(screen, optX, row+2, yellowStyle, "> "+yesLabel)
+		drawText(screen, optX, row+3, whiteStyle, "  "+noLabel)
+	} else {
+		drawText(screen, optX, row+2, whiteStyle, "  "+yesLabel)
+		drawText(screen, optX, row+3, yellowStyle, "> "+noLabel)
 	}
-	for y := boxY; y < boxY+boxHeight; y++ {
-		screen.SetContent(boxX, y, '|', nil, whiteStyle)
-		screen.SetContent(boxX+boxWidth-1, y, '|', nil, whiteStyle)
-	}
-
-	// Message
-	msgX := boxX + (boxWidth-len(message))/2
-	drawText(screen, msgX, boxY+2, whiteStyle, message)
-
-	// Options
-	yesX := boxX + (boxWidth-len(yesText))/2
-	noX := boxX + (boxWidth-len(noText))/2
-	drawText(screen, yesX, boxY+4, redStyle, yesText)
-	drawText(screen, noX, boxY+5, cyanStyle, noText)
+	hintX := (w - len(hint)) / 2
+	drawText(screen, hintX, row+5, cyanStyle, hint)
 }

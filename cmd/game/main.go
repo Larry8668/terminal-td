@@ -82,6 +82,7 @@ func main() {
 	menuSelection := render.MenuStart
 	showControls := false
 	showSettings := false
+	quitConfirmYes := false
 
 	handleMenuSelect := func() bool {
 		if g.Manager.State != game.StateMenu {
@@ -149,7 +150,7 @@ func main() {
 				}
 
 			case game.StateQuitConfirm:
-				render.DrawQuitConfirm(screen)
+				render.DrawQuitConfirm(screen, quitConfirmYes)
 
 			default:
 				g.Manager.Update(dt)
@@ -228,11 +229,14 @@ func main() {
 						g.Manager.Mode = game.ModeNormal
 					} else {
 						log.Println("DEBUG: Showing quit confirmation")
+						quitConfirmYes = false
 						g.Manager.State = game.StateQuitConfirm
 					}
 
 				case tcell.KeyUp:
-					if g.Manager.State == game.StateMenu && !showControls && !showSettings {
+					if g.Manager.State == game.StateQuitConfirm {
+						quitConfirmYes = true
+					} else if g.Manager.State == game.StateMenu && !showControls && !showSettings {
 						if menuSelection > render.MenuStart {
 							menuSelection--
 						}
@@ -242,7 +246,9 @@ func main() {
 					}
 
 				case tcell.KeyDown:
-					if g.Manager.State == game.StateMenu && !showControls && !showSettings {
+					if g.Manager.State == game.StateQuitConfirm {
+						quitConfirmYes = false
+					} else if g.Manager.State == game.StateMenu && !showControls && !showSettings {
 						maxOpt := render.MaxMenuOption(updateAvailable)
 						if menuSelection < maxOpt {
 							menuSelection++
@@ -253,18 +259,31 @@ func main() {
 					}
 
 				case tcell.KeyLeft:
-					if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm {
+					if g.Manager.State == game.StateQuitConfirm {
+						quitConfirmYes = true
+					} else if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm {
 						g.CursorX--
 						clampCursor(g)
 					}
 
 				case tcell.KeyRight:
-					if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm {
+					if g.Manager.State == game.StateQuitConfirm {
+						quitConfirmYes = false
+					} else if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm {
 						g.CursorX++
 						clampCursor(g)
 					}
 
 				case tcell.KeyEnter:
+					if g.Manager.State == game.StateQuitConfirm {
+						if quitConfirmYes {
+							running = false
+							close(quit)
+						} else {
+							g.Manager.State = game.StateInWave
+						}
+						continue
+					}
 					if handleMenuSelect() {
 						continue
 					}
@@ -272,7 +291,9 @@ func main() {
 				case tcell.KeyRune:
 					switch e.Rune() {
 					case 'w', 'W':
-						if g.Manager.State == game.StateMenu && !showControls && !showSettings {
+						if g.Manager.State == game.StateQuitConfirm {
+							quitConfirmYes = true
+						} else if g.Manager.State == game.StateMenu && !showControls && !showSettings {
 							if menuSelection > render.MenuStart {
 								menuSelection--
 							}
@@ -282,7 +303,9 @@ func main() {
 						}
 
 					case 's', 'S':
-						if g.Manager.State == game.StateMenu && !showControls && !showSettings {
+						if g.Manager.State == game.StateQuitConfirm {
+							quitConfirmYes = false
+						} else if g.Manager.State == game.StateMenu && !showControls && !showSettings {
 							maxOpt := render.MaxMenuOption(updateAvailable)
 							if menuSelection < maxOpt {
 								menuSelection++
@@ -293,13 +316,17 @@ func main() {
 						}
 
 					case 'a', 'A':
-						if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm {
+						if g.Manager.State == game.StateQuitConfirm {
+							quitConfirmYes = true
+						} else if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm {
 							g.CursorX--
 							clampCursor(g)
 						}
 
 					case 'd', 'D':
-						if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm {
+						if g.Manager.State == game.StateQuitConfirm {
+							quitConfirmYes = false
+						} else if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm {
 							g.CursorX++
 							clampCursor(g)
 						}
@@ -363,7 +390,12 @@ func main() {
 								continue
 							}
 						} else if g.Manager.State == game.StateQuitConfirm {
-							// Do nothing, use Y/N keys
+							if quitConfirmYes {
+								running = false
+								close(quit)
+							} else {
+								g.Manager.State = game.StateInWave
+							}
 						} else if g.Manager.Mode == game.ModeBuild {
 							if g.PlaceTower(entities.TowerBasic) {
 								log.Printf("DEBUG: Tower placed at (%d, %d)", g.CursorX, g.CursorY)
