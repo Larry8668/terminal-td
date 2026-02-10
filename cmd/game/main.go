@@ -1,24 +1,34 @@
 package main
 
 import (
-	"github.com/gdamore/tcell/v2"
+	"flag"
 	"log"
 	"os"
+	"strings"
+	"time"
+
+	"github.com/gdamore/tcell/v2"
+
+	"terminal-td/internal/config"
 	"terminal-td/internal/entities"
 	"terminal-td/internal/game"
 	"terminal-td/internal/render"
-	"time"
+	"terminal-td/internal/updater"
 )
 
 const tickRate = 100 * time.Millisecond
 
 func main() {
+	justUpdated := flag.Bool("just-updated", false, "Show changelog after update")
+	changelogPath := flag.String("changelog", "", "Path to changelog file")
+	flag.Parse()
+
 	f, err := os.Create("debug.log")
 	if err != nil {
 		log.Printf("ERROR: Failed to create debug.log: %v", err)
 	} else {
 		log.SetOutput(f)
-		log.Println("=== Terminal Tower Defense v0.01 ===")
+		log.Printf("=== Terminal Tower Defense %s ===", game.Version)
 		log.Println("Debug logging initialized")
 	}
 
@@ -31,6 +41,31 @@ func main() {
 	}
 	defer screen.Fini()
 	log.Println("Screen initialized successfully")
+
+	if *justUpdated && *changelogPath != "" {
+		showChangelogScreen(screen, *changelogPath)
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		log.Printf("config load: %v, using defaults", err)
+		cfg = config.Default()
+	}
+
+	var updateAvailable bool
+	var latestVersion string
+	var latestRelease *updater.Release
+	if cfg.CheckForUpdates {
+		release, err := updater.FetchLatest(updater.DefaultOwner, updater.DefaultRepo)
+		if err != nil {
+			log.Printf("check for update: %v", err)
+		} else if updater.IsNewer(game.Version, release.TagName) {
+			updateAvailable = true
+			latestVersion = release.TagName
+			latestRelease = release
+			log.Printf("Update available: %s", latestVersion)
+		}
+	}
 
 	g := game.NewGame()
 	log.Println("Game instance created")
@@ -46,6 +81,52 @@ func main() {
 	running := true
 	menuSelection := render.MenuStart
 	showControls := false
+	showSettings := false
+
+	handleMenuSelect := func() bool {
+		if g.Manager.State != game.StateMenu {
+			return false
+		}
+		if showSettings {
+			cfg.CheckForUpdates = !cfg.CheckForUpdates
+			if err := config.Save(cfg); err != nil {
+				log.Printf("config save: %v", err)
+			}
+			return false
+		}
+		if showControls {
+			showControls = false
+			return false
+		}
+		if menuSelection == 3 && updateAvailable {
+			log.Println("DEBUG: Starting update")
+			if latestRelease != nil {
+				if err := updater.RunUpdate(latestRelease); err != nil {
+					log.Printf("update failed: %v", err)
+				}
+			}
+			return true
+		}
+		if menuSelection == 3 && !updateAvailable || menuSelection == 4 {
+			log.Println("DEBUG: Quitting from menu")
+			running = false
+			close(quit)
+			return true
+		}
+		switch menuSelection {
+		case render.MenuStart:
+			log.Println("DEBUG: Starting game from menu")
+			g.Manager.State = game.StatePreWave
+			g.Manager.InterWaveTimer = 5.0
+		case render.MenuControls:
+			log.Println("DEBUG: Showing controls")
+			showControls = true
+		case render.MenuSettings:
+			log.Println("DEBUG: Showing settings")
+			showSettings = true
+		}
+		return false
+	}
 
 	log.Println("Entering main game loop")
 
@@ -57,20 +138,20 @@ func main() {
 
 			screen.Clear()
 
-			// Handle different game states
 			switch g.Manager.State {
 			case game.StateMenu:
-				if showControls {
+				if showSettings {
+					render.DrawSettings(screen, cfg.CheckForUpdates)
+				} else if showControls {
 					render.DrawControls(screen)
 				} else {
-					render.DrawMainMenu(screen, menuSelection)
+					render.DrawMainMenu(screen, menuSelection, updateAvailable, latestVersion)
 				}
 
 			case game.StateQuitConfirm:
 				render.DrawQuitConfirm(screen)
 
 			default:
-				// Normal game rendering
 				g.Manager.Update(dt)
 
 				if g.Manager.IsSimulationRunning() {
@@ -129,7 +210,9 @@ func main() {
 				case tcell.KeyEscape:
 					log.Println("DEBUG: ESC key pressed")
 					if g.Manager.State == game.StateMenu {
-						if showControls {
+						if showSettings {
+							showSettings = false
+						} else if showControls {
 							log.Println("DEBUG: Exiting controls screen")
 							showControls = false
 						} else {
@@ -149,10 +232,9 @@ func main() {
 					}
 
 				case tcell.KeyUp:
-					if g.Manager.State == game.StateMenu && !showControls {
+					if g.Manager.State == game.StateMenu && !showControls && !showSettings {
 						if menuSelection > render.MenuStart {
 							menuSelection--
-							log.Printf("DEBUG: Menu selection: %d", menuSelection)
 						}
 					} else if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm {
 						g.CursorY--
@@ -160,10 +242,10 @@ func main() {
 					}
 
 				case tcell.KeyDown:
-					if g.Manager.State == game.StateMenu && !showControls {
-						if menuSelection < render.MenuQuit {
+					if g.Manager.State == game.StateMenu && !showControls && !showSettings {
+						maxOpt := render.MaxMenuOption(updateAvailable)
+						if menuSelection < maxOpt {
 							menuSelection++
-							log.Printf("DEBUG: Menu selection: %d", menuSelection)
 						}
 					} else if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm {
 						g.CursorY++
@@ -182,10 +264,15 @@ func main() {
 						clampCursor(g)
 					}
 
+				case tcell.KeyEnter:
+					if handleMenuSelect() {
+						continue
+					}
+
 				case tcell.KeyRune:
 					switch e.Rune() {
 					case 'w', 'W':
-						if g.Manager.State == game.StateMenu && !showControls {
+						if g.Manager.State == game.StateMenu && !showControls && !showSettings {
 							if menuSelection > render.MenuStart {
 								menuSelection--
 							}
@@ -195,8 +282,9 @@ func main() {
 						}
 
 					case 's', 'S':
-						if g.Manager.State == game.StateMenu && !showControls {
-							if menuSelection < render.MenuQuit {
+						if g.Manager.State == game.StateMenu && !showControls && !showSettings {
+							maxOpt := render.MaxMenuOption(updateAvailable)
+							if menuSelection < maxOpt {
 								menuSelection++
 							}
 						} else if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm {
@@ -271,22 +359,8 @@ func main() {
 
 					case ' ', '\n', '\r':
 						if g.Manager.State == game.StateMenu {
-							if showControls {
-								showControls = false
-							} else {
-								switch menuSelection {
-								case render.MenuStart:
-									log.Println("DEBUG: Starting game from menu")
-									g.Manager.State = game.StatePreWave
-									g.Manager.InterWaveTimer = 5.0
-								case render.MenuControls:
-									log.Println("DEBUG: Showing controls")
-									showControls = true
-								case render.MenuQuit:
-									log.Println("DEBUG: Quitting from menu")
-									running = false
-									close(quit)
-								}
+							if handleMenuSelect() {
+								continue
 							}
 						} else if g.Manager.State == game.StateQuitConfirm {
 							// Do nothing, use Y/N keys
@@ -295,7 +369,7 @@ func main() {
 								log.Printf("DEBUG: Tower placed at (%d, %d)", g.CursorX, g.CursorY)
 								g.Manager.Mode = game.ModeNormal
 							} else {
-								log.Printf("DEBUG: Failed to place tower at (%d, %d) - invalid location or insufficient funds", g.CursorX, g.CursorY)
+								log.Printf("DEBUG: Failed to place tower at (%d, %d)", g.CursorX, g.CursorY)
 							}
 						} else if g.Manager.Mode == game.ModeNormal {
 							tower := g.GetTowerAt(g.CursorX, g.CursorY)
@@ -319,6 +393,32 @@ func main() {
 	}
 
 	log.Println("=== Game session ended ===")
+}
+
+func showChangelogScreen(screen tcell.Screen, path string) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		log.Printf("changelog read: %v", err)
+		return
+	}
+	changelog := strings.TrimSpace(string(content))
+	if changelog == "" {
+		changelog = "No changelog available."
+	}
+
+	events := make(chan tcell.Event, 10)
+	go screen.ChannelEvents(events, nil)
+
+	for {
+		screen.Clear()
+		render.DrawChangelog(screen, changelog)
+		screen.Show()
+
+		ev := <-events
+		if _, ok := ev.(*tcell.EventKey); ok {
+			break
+		}
+	}
 }
 
 func clampCursor(g *game.Game) {
