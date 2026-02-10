@@ -4,6 +4,12 @@ A terminal-based tower defense game built with Go and tcell.
 
 ![Preview](images/preview.png)
 
+> 🚧 **macOS:** Downloaded binaries may be blocked by Gatekeeper ("cannot be opened" / "not verified").  
+> The app is unsigned (code signing requires a paid Apple Developer account). You can:
+>
+> 1. On Terminal: `xattr -d com.apple.quarantine terminal-td-v0.1.0-darwin-arm64` (use the actual path and filename).
+> 2. Or **build from source:** `./build.sh mac-arm` then run the binary from the `builds/` folder.
+
 ## Quick Start ⚡
 
 ```bash
