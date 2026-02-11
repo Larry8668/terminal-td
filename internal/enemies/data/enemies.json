@@ -1,0 +1,28 @@
+{
+  "enemies": [
+    {
+      "id": "basic",
+      "name": "Basic Enemy",
+      "hp": 20.0,
+      "speed": 5.0,
+      "size": 1,
+      "reward": 10
+    },
+    {
+      "id": "tank",
+      "name": "Tank",
+      "hp": 50.0,
+      "speed": 0.8,
+      "size": 2,
+      "reward": 20
+    },
+    {
+      "id": "fast",
+      "name": "Fast Enemy",
+      "hp": 10.0,
+      "speed": 8.0,
+      "size": 1,
+      "reward": 15
+    }
+  ]
+}

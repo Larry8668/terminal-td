@@ -6,6 +6,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"terminal-td/internal/game"
+	mapdata "terminal-td/internal/map"
 )
 
 type MenuOption int
@@ -303,4 +304,40 @@ func DrawQuitConfirm(screen tcell.Screen, selectedYes bool) {
 	}
 	hintX := (w - len(hint)) / 2
 	drawText(screen, hintX, row+5, cyanStyle, hint)
+}
+
+// DrawMapSelection shows available maps for selection.
+func DrawMapSelection(screen tcell.Screen, maps []mapdata.MapInfo, selectedIndex int) {
+	w, h := screen.Size()
+
+	whiteStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite)
+	cyanStyle := tcell.StyleDefault.Foreground(tcell.Color(6))
+	yellowStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow)
+	greenStyle := tcell.StyleDefault.Foreground(tcell.ColorGreen)
+
+	title := "SELECT MAP"
+	titleX := (w - len(title)) / 2
+	drawText(screen, titleX, h/2-8, greenStyle, title)
+
+	centerX := w / 2
+	row := h/2 - 4
+
+	for i, m := range maps {
+		if row >= h-4 {
+			break
+		}
+		text := m.Name
+		style := whiteStyle
+		if i == selectedIndex {
+			style = yellowStyle
+			drawText(screen, centerX-len(text)/2-2, row, style, "> "+text)
+		} else {
+			drawText(screen, centerX-len(text)/2, row, style, text)
+		}
+		row += 2
+	}
+
+	instructions := "Use ARROW KEYS or W/S to navigate, SPACE to select, ESC to cancel"
+	instX := (w - len(instructions)) / 2
+	drawText(screen, instX, h-2, cyanStyle, instructions)
 }

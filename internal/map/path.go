@@ -23,10 +23,14 @@ func DefaultPath() Path {
 }
 
 func ApplyPath(grid *Grid, path Path) {
+	applyPathToGrid(grid, path, -1, -1)
+}
+
+// applyPathToGrid draws path segments and spawn; if baseX, baseY >= 0 uses them for base tile, else path end.
+func applyPathToGrid(grid *Grid, path Path, baseX, baseY int) {
 	for i := 0; i < len(path.Points)-1; i++ {
 		a := path.Points[i]
 		b := path.Points[i+1]
-
 		if a.X == b.X {
 			start, end := min(a.Y, b.Y), max(a.Y, b.Y)
 			for y := start; y <= end; y++ {
@@ -39,12 +43,14 @@ func ApplyPath(grid *Grid, path Path) {
 			}
 		}
 	}
-
 	start := path.Points[0]
-	end := path.Points[len(path.Points)-1]
-
 	grid.Tiles[start.Y][start.X] = SpawnTile
-	grid.Tiles[end.Y][end.X] = BaseTile
+	if baseX >= 0 && baseY >= 0 {
+		grid.Tiles[baseY][baseX] = BaseTile
+	} else {
+		end := path.Points[len(path.Points)-1]
+		grid.Tiles[end.Y][end.X] = BaseTile
+	}
 }
 
 func min(a, b int) int {

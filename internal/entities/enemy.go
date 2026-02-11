@@ -10,22 +10,46 @@ type Enemy struct {
 	Y     float64
 	Speed float64
 	HP    float64
+	MaxHP float64
 
 	PathIndex int
 	Path      mapdata.Path
 
+	Reward      int
+	EnemyTypeID string
+
 	ReachedBase bool
 }
 
+// NewEnemy creates a basic enemy (legacy compatibility).
 func NewEnemy(path mapdata.Path) *Enemy {
 	start := path.Points[0]
 
 	return &Enemy{
-		X:     float64(start.X),
-		Y:     float64(start.Y),
-		Speed: 5,
-		HP:    20.0,
-		Path:  path,
+		X:          float64(start.X),
+		Y:          float64(start.Y),
+		Speed:      5,
+		HP:         20.0,
+		MaxHP:      20.0,
+		Path:       path,
+		Reward:     10,
+		EnemyTypeID: "basic",
+	}
+}
+
+// NewEnemyFromDef creates an enemy from a definition and path.
+func NewEnemyFromDef(hp, speed float64, reward int, enemyTypeID string, path mapdata.Path) *Enemy {
+	start := path.Points[0]
+
+	return &Enemy{
+		X:          float64(start.X),
+		Y:          float64(start.Y),
+		Speed:      speed,
+		HP:         hp,
+		MaxHP:      hp,
+		Path:       path,
+		Reward:     reward,
+		EnemyTypeID: enemyTypeID,
 	}
 }
 

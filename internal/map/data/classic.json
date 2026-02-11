@@ -1,0 +1,33 @@
+{
+  "id": "classic",
+  "name": "Tutorial",
+  "grid": {
+    "width": 80,
+    "height": 25
+  },
+  "spawns": [
+    {
+      "id": "default",
+      "x": 0,
+      "y": 12
+    }
+  ],
+  "paths": [
+    {
+      "spawn_id": "default",
+      "points": [
+        { "x": 0, "y": 12 },
+        { "x": 20, "y": 12 },
+        { "x": 20, "y": 5 },
+        { "x": 50, "y": 5 },
+        { "x": 50, "y": 22 },
+        { "x": 79, "y": 22 }
+      ]
+    }
+  ],
+  "base": {
+    "x": 79,
+    "y": 22,
+    "hp": 10
+  }
+}

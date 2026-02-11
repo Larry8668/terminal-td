@@ -11,9 +11,30 @@ import (
 )
 
 func DrawGrid(screen tcell.Screen, grid *mapdata.Grid, offsetX, offsetY int) {
+	DrawGridWithHighlights(screen, grid, nil, offsetX, offsetY, nil, 0)
+}
+
+func DrawGridWithHighlights(screen tcell.Screen, grid *mapdata.Grid, mapData *mapdata.GameMap, offsetX, offsetY int, highlightSpawns map[string]bool, blinkTimer float64) {
+	defaultStyle := tcell.StyleDefault
+	redStyle := tcell.StyleDefault.Foreground(tcell.ColorRed)
+	blinkRedStyle := tcell.StyleDefault.Foreground(tcell.ColorRed).Bold(true)
+	
+	shouldBlink := int(blinkTimer*4) % 2 == 0
+	
+	spawnPositions := make(map[int]map[int]string)
+	if mapData != nil {
+		for _, spawn := range mapData.Spawns {
+			if spawnPositions[spawn.Y] == nil {
+				spawnPositions[spawn.Y] = make(map[int]string)
+			}
+			spawnPositions[spawn.Y][spawn.X] = spawn.ID
+		}
+	}
+	
 	for y := 0; y < grid.Height; y++ {
 		for x := 0; x < grid.Width; x++ {
 			var ch rune
+			style := defaultStyle
 
 			switch grid.Tiles[y][x] {
 			case mapdata.Empty:
@@ -22,11 +43,20 @@ func DrawGrid(screen tcell.Screen, grid *mapdata.Grid, offsetX, offsetY int) {
 				ch = '='
 			case mapdata.SpawnTile:
 				ch = 'S'
+				if highlightSpawns != nil && spawnPositions[y] != nil {
+					if spawnID, ok := spawnPositions[y][x]; ok && highlightSpawns[spawnID] {
+						if shouldBlink {
+							style = blinkRedStyle
+						} else {
+							style = redStyle
+						}
+					}
+				}
 			case mapdata.BaseTile:
 				ch = 'E'
 			}
 
-			screen.SetContent(offsetX+x, offsetY+y, ch, nil, tcell.StyleDefault)
+			screen.SetContent(offsetX+x, offsetY+y, ch, nil, style)
 		}
 	}
 }
@@ -47,8 +77,8 @@ func DrawUI(screen tcell.Screen, g *game.Game) {
 
 	whiteStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite)
 
-	waveText := fmt.Sprintf("Wave: %d/%d", g.Wave.CurrentWave, g.Wave.TotalWaves)
-	enemyText := fmt.Sprintf("Enemies: %d", g.Wave.EnemiesAlive)
+	waveText := fmt.Sprintf("Wave: %d/%d", g.GetCurrentWave(), g.GetTotalWaves())
+	enemyText := fmt.Sprintf("Enemies: %d", g.GetEnemiesAlive())
 	hpText := fmt.Sprintf("Base HP: %d", g.Base.HP)
 
 	drawText(screen, 0, 0, whiteStyle, waveText)

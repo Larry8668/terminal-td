@@ -14,6 +14,7 @@ import (
 	"terminal-td/internal/config"
 	"terminal-td/internal/entities"
 	"terminal-td/internal/game"
+	mapdata "terminal-td/internal/map"
 	"terminal-td/internal/render"
 	"terminal-td/internal/updater"
 )
@@ -136,6 +137,15 @@ func main() {
 	showUpdateScreen := false
 	var updateProgress *updater.Progress
 	var updateStarted bool
+	showMapSelection := false
+	var availableMaps []mapdata.MapInfo
+	var mapSelectionIndex int
+	if maps, err := mapdata.ListMaps(); err != nil {
+		log.Printf("load maps: %v", err)
+		availableMaps = []mapdata.MapInfo{{ID: "classic", Name: "Tutorial"}}
+	} else {
+		availableMaps = maps
+	}
 
 	handleMenuSelect := func() bool {
 		if g.Manager.State != game.StateMenu {
@@ -176,9 +186,9 @@ func main() {
 		}
 		switch menuSelection {
 		case render.MenuStart:
-			log.Println("DEBUG: Starting game from menu")
-			g.Manager.State = game.StatePreWave
-			g.Manager.InterWaveTimer = 5.0
+			log.Println("DEBUG: Showing map selection")
+			showMapSelection = true
+			mapSelectionIndex = 0
 		case render.MenuControls:
 			log.Println("DEBUG: Showing controls")
 			showControls = true
@@ -205,7 +215,7 @@ func main() {
 	for running {
 		select {
 
-		case <-ticker.C:
+			case <-ticker.C:
 			dt := tickRate.Seconds()
 
 			screen.Clear()
@@ -218,6 +228,8 @@ func main() {
 						go updater.RunUpdateWithProgress(latestRelease, updateProgress)
 					}
 					render.DrawUpdateScreen(screen, updateProgress.Step, updateProgress.Percent, updateProgress.Done, updateProgress.Err)
+				} else if showMapSelection {
+					render.DrawMapSelection(screen, availableMaps, mapSelectionIndex)
 				} else if showSettings {
 					render.DrawSettings(screen, cfg.CheckForUpdates)
 				} else if showControls {
@@ -254,7 +266,12 @@ func main() {
 					offsetY = uiHeight
 				}
 
-				render.DrawGrid(screen, g.Grid, offsetX, offsetY)
+				var highlightSpawns map[string]bool
+				blinkTimer := g.Manager.RunTime
+				if g.Manager.State == game.StatePreWave {
+					highlightSpawns = g.GetNextWaveSpawnIDs()
+				}
+				render.DrawGridWithHighlights(screen, g.Grid, g.Map, offsetX, offsetY, highlightSpawns, blinkTimer)
 
 				if g.Manager.Mode == game.ModeBuild {
 					templates := game.GetTowerTemplates()
@@ -292,6 +309,8 @@ func main() {
 					if g.Manager.State == game.StateMenu {
 						if showUpdateScreen && updateProgress != nil && updateProgress.Done {
 							showUpdateScreen = false
+						} else if showMapSelection {
+							showMapSelection = false
 						} else if showSettings {
 							showSettings = false
 						} else if showControls {
@@ -319,7 +338,11 @@ func main() {
 				case tcell.KeyUp:
 					if g.Manager.State == game.StateQuitConfirm {
 						quitConfirmYes = true
-					} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog && !showUpdateScreen {
+					} else if g.Manager.State == game.StateMenu && showMapSelection {
+						if mapSelectionIndex > 0 {
+							mapSelectionIndex--
+						}
+					} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog && !showUpdateScreen && !showMapSelection {
 						if menuSelection > render.MenuStart {
 							menuSelection--
 						}
@@ -331,7 +354,11 @@ func main() {
 				case tcell.KeyDown:
 					if g.Manager.State == game.StateQuitConfirm {
 						quitConfirmYes = false
-					} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog && !showUpdateScreen {
+					} else if g.Manager.State == game.StateMenu && showMapSelection {
+						if mapSelectionIndex < len(availableMaps)-1 {
+							mapSelectionIndex++
+						}
+					} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog && !showUpdateScreen && !showMapSelection {
 						maxOpt := render.MaxMenuOption(updateAvailable)
 						if menuSelection < maxOpt {
 							menuSelection++
@@ -370,6 +397,22 @@ func main() {
 						}
 						continue
 					}
+					if g.Manager.State == game.StateMenu && showMapSelection {
+						if mapSelectionIndex >= 0 && mapSelectionIndex < len(availableMaps) {
+							selectedMapID := availableMaps[mapSelectionIndex].ID
+							log.Printf("DEBUG: Starting game with map %q", selectedMapID)
+							m, err := mapdata.LoadMapByID(selectedMapID)
+							if err != nil {
+								log.Printf("ERROR: Failed to load map %q: %v", selectedMapID, err)
+								m, _ = mapdata.DefaultMap()
+							}
+							g = game.NewGameFromMap(m)
+							g.Manager.State = game.StatePreWave
+							g.Manager.InterWaveTimer = 5.0
+							showMapSelection = false
+						}
+						continue
+					}
 					if handleMenuSelect() {
 						continue
 					}
@@ -379,7 +422,11 @@ func main() {
 					case 'w', 'W':
 						if g.Manager.State == game.StateQuitConfirm {
 							quitConfirmYes = true
-						} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog && !showUpdateScreen {
+						} else if g.Manager.State == game.StateMenu && showMapSelection {
+							if mapSelectionIndex > 0 {
+								mapSelectionIndex--
+							}
+						} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog && !showUpdateScreen && !showMapSelection {
 							if menuSelection > render.MenuStart {
 								menuSelection--
 							}
@@ -391,7 +438,11 @@ func main() {
 					case 's', 'S':
 						if g.Manager.State == game.StateQuitConfirm {
 							quitConfirmYes = false
-						} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog && !showUpdateScreen {
+						} else if g.Manager.State == game.StateMenu && showMapSelection {
+							if mapSelectionIndex < len(availableMaps)-1 {
+								mapSelectionIndex++
+							}
+						} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog && !showUpdateScreen && !showMapSelection {
 							maxOpt := render.MaxMenuOption(updateAvailable)
 							if menuSelection < maxOpt {
 								menuSelection++
@@ -471,6 +522,22 @@ func main() {
 						}
 
 					case ' ', '\n', '\r':
+						if g.Manager.State == game.StateMenu && showMapSelection {
+							if mapSelectionIndex >= 0 && mapSelectionIndex < len(availableMaps) {
+								selectedMapID := availableMaps[mapSelectionIndex].ID
+								log.Printf("DEBUG: Starting game with map %q", selectedMapID)
+								m, err := mapdata.LoadMapByID(selectedMapID)
+								if err != nil {
+									log.Printf("ERROR: Failed to load map %q: %v", selectedMapID, err)
+									m, _ = mapdata.DefaultMap()
+								}
+								g = game.NewGameFromMap(m)
+								g.Manager.State = game.StatePreWave
+								g.Manager.InterWaveTimer = 5.0
+								showMapSelection = false
+							}
+							continue
+						}
 						if showUpdateScreen && updateProgress != nil && updateProgress.Done && updateProgress.Err == nil {
 							os.Exit(0)
 						}
