@@ -4,6 +4,8 @@ import (
 	"flag"
 	"log"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,17 +18,63 @@ import (
 	"terminal-td/internal/updater"
 )
 
-const tickRate = 100 * time.Millisecond
+const (
+	tickRate             = 100 * time.Millisecond
+	sessionLogPrefix     = "terminal-td-session-"
+	sessionLogSuffix     = ".log"
+	maxSessionLogs       = 5
+	sessionLogTimeFormat = "20060102-150405"
+)
+
+func initSessionLog() (*os.File, error) {
+	dir, err := config.Dir()
+	if err != nil {
+		return nil, err
+	}
+	cleanupSessionLogs(dir)
+	name := sessionLogPrefix + time.Now().Format(sessionLogTimeFormat) + sessionLogSuffix
+	path := filepath.Join(dir, name)
+	f, err := os.Create(path)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+func cleanupSessionLogs(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	var matches []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		n := e.Name()
+		if strings.HasPrefix(n, sessionLogPrefix) && strings.HasSuffix(n, sessionLogSuffix) {
+			matches = append(matches, n)
+		}
+	}
+	if len(matches) <= maxSessionLogs {
+		return
+	}
+	sort.Strings(matches)
+	for i := 0; i < len(matches)-maxSessionLogs; i++ {
+		_ = os.Remove(filepath.Join(dir, matches[i]))
+	}
+}
 
 func main() {
 	justUpdated := flag.Bool("just-updated", false, "Show changelog after update")
 	changelogPath := flag.String("changelog", "", "Path to changelog file")
 	flag.Parse()
 
-	f, err := os.Create("debug.log")
+	f, err := initSessionLog()
 	if err != nil {
-		log.Printf("ERROR: Failed to create debug.log: %v", err)
+		log.Printf("ERROR: Failed to create session log: %v", err)
 	} else {
+		defer f.Close()
 		log.SetOutput(f)
 		log.Printf("=== Terminal Tower Defense %s ===", game.Version)
 		log.Println("Debug logging initialized")
@@ -85,6 +133,9 @@ func main() {
 	showChangelog := false
 	changelogContent := ""
 	quitConfirmYes := false
+	showUpdateScreen := false
+	var updateProgress *updater.Progress
+	var updateStarted bool
 
 	handleMenuSelect := func() bool {
 		if g.Manager.State != game.StateMenu {
@@ -105,14 +156,17 @@ func main() {
 			showChangelog = false
 			return false
 		}
-		if menuSelection == render.MenuUpdateAvailable && updateAvailable {
-			log.Println("DEBUG: Starting update")
-			if latestRelease != nil {
-				if err := updater.RunUpdate(latestRelease); err != nil {
-					log.Printf("update failed: %v", err)
-				}
+		if showUpdateScreen && updateProgress != nil && updateProgress.Done {
+			if updateProgress.Err != nil {
+				showUpdateScreen = false
 			}
-			return true
+			return false
+		}
+		if menuSelection == render.MenuUpdateAvailable && updateAvailable && latestRelease != nil {
+			showUpdateScreen = true
+			updateProgress = &updater.Progress{}
+			updateStarted = false
+			return false
 		}
 		if menuSelection == render.MenuUpdateAvailable && !updateAvailable || menuSelection == render.MenuQuit {
 			log.Println("DEBUG: Quitting from menu")
@@ -158,7 +212,13 @@ func main() {
 
 			switch g.Manager.State {
 			case game.StateMenu:
-				if showSettings {
+				if showUpdateScreen && updateProgress != nil {
+					if !updateStarted {
+						updateStarted = true
+						go updater.RunUpdateWithProgress(latestRelease, updateProgress)
+					}
+					render.DrawUpdateScreen(screen, updateProgress.Step, updateProgress.Percent, updateProgress.Done, updateProgress.Err)
+				} else if showSettings {
 					render.DrawSettings(screen, cfg.CheckForUpdates)
 				} else if showControls {
 					render.DrawControls(screen)
@@ -230,7 +290,9 @@ func main() {
 				case tcell.KeyEscape:
 					log.Println("DEBUG: ESC key pressed")
 					if g.Manager.State == game.StateMenu {
-						if showSettings {
+						if showUpdateScreen && updateProgress != nil && updateProgress.Done {
+							showUpdateScreen = false
+						} else if showSettings {
 							showSettings = false
 						} else if showControls {
 							log.Println("DEBUG: Exiting controls screen")
@@ -257,7 +319,7 @@ func main() {
 				case tcell.KeyUp:
 					if g.Manager.State == game.StateQuitConfirm {
 						quitConfirmYes = true
-					} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog {
+					} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog && !showUpdateScreen {
 						if menuSelection > render.MenuStart {
 							menuSelection--
 						}
@@ -269,7 +331,7 @@ func main() {
 				case tcell.KeyDown:
 					if g.Manager.State == game.StateQuitConfirm {
 						quitConfirmYes = false
-					} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog {
+					} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog && !showUpdateScreen {
 						maxOpt := render.MaxMenuOption(updateAvailable)
 						if menuSelection < maxOpt {
 							menuSelection++
@@ -296,6 +358,9 @@ func main() {
 					}
 
 				case tcell.KeyEnter:
+					if showUpdateScreen && updateProgress != nil && updateProgress.Done && updateProgress.Err == nil {
+						os.Exit(0)
+					}
 					if g.Manager.State == game.StateQuitConfirm {
 						if quitConfirmYes {
 							running = false
@@ -314,7 +379,7 @@ func main() {
 					case 'w', 'W':
 						if g.Manager.State == game.StateQuitConfirm {
 							quitConfirmYes = true
-						} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog {
+						} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog && !showUpdateScreen {
 							if menuSelection > render.MenuStart {
 								menuSelection--
 							}
@@ -326,7 +391,7 @@ func main() {
 					case 's', 'S':
 						if g.Manager.State == game.StateQuitConfirm {
 							quitConfirmYes = false
-						} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog {
+						} else if g.Manager.State == game.StateMenu && !showControls && !showSettings && !showChangelog && !showUpdateScreen {
 							maxOpt := render.MaxMenuOption(updateAvailable)
 							if menuSelection < maxOpt {
 								menuSelection++
@@ -406,6 +471,9 @@ func main() {
 						}
 
 					case ' ', '\n', '\r':
+						if showUpdateScreen && updateProgress != nil && updateProgress.Done && updateProgress.Err == nil {
+							os.Exit(0)
+						}
 						if g.Manager.State == game.StateMenu {
 							if handleMenuSelect() {
 								continue

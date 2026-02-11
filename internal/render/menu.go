@@ -107,10 +107,12 @@ func DrawMainMenu(screen tcell.Screen, selectedOption MenuOption, updateAvailabl
 		drawText(screen, centerX-len(quitText)/2, row, style, quitText)
 	}
 
+	row += 2
+
 	// Instructions
 	instructions := "Use ARROW KEYS or W/S to navigate, SPACE to select"
 	instX := (w - len(instructions)) / 2
-	drawText(screen, instX, h/2+7, cyanStyle, instructions)
+	drawText(screen, instX, row, cyanStyle, instructions)
 }
 
 func MaxMenuOption(updateAvailable bool) MenuOption {
@@ -167,6 +169,51 @@ func DrawChangelog(screen tcell.Screen, content string) {
 	}
 
 	drawText(screen, w/2-20, h-2, cyanStyle, "Press any key to continue")
+}
+
+func DrawUpdateScreen(screen tcell.Screen, step string, percent int, done bool, err error) {
+	w, h := screen.Size()
+	whiteStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite)
+	greenStyle := tcell.StyleDefault.Foreground(tcell.ColorGreen)
+	cyanStyle := tcell.StyleDefault.Foreground(tcell.Color(6))
+	yellowStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow)
+	redStyle := tcell.StyleDefault.Foreground(tcell.ColorRed)
+
+	title := "UPDATING"
+	drawText(screen, (w-len(title))/2, 2, greenStyle, title)
+	drawText(screen, (w-len(step))/2, 5, whiteStyle, step)
+	barWidth := 40
+	if barWidth > w-4 {
+		barWidth = w - 4
+	}
+	filled := (barWidth * percent) / 100
+	if filled > barWidth {
+		filled = barWidth
+	}
+	bar := "[" + strings.Repeat("=", filled) + strings.Repeat(" ", barWidth-filled) + "]"
+	drawText(screen, (w-len(bar))/2, 7, cyanStyle, bar)
+	pctStr := fmt.Sprintf("%d%%", percent)
+	drawText(screen, (w-len(pctStr))/2, 8, yellowStyle, pctStr)
+
+	if done {
+		if err != nil {
+			drawText(screen, (w-14)/2, 11, redStyle, "Update failed")
+			lines := splitLines(err.Error(), w-4)
+			y := 12
+			for _, line := range lines {
+				if y >= h-4 {
+					break
+				}
+				drawText(screen, 2, y, whiteStyle, line)
+				y++
+			}
+			drawText(screen, (w-32)/2, h-2, cyanStyle, "Press any key to return to menu")
+		} else {
+			drawText(screen, (w-52)/2, 12, greenStyle, "The exe has been updated.")
+			drawText(screen, (w-46)/2, 13, whiteStyle, "Reopen the game to play the latest version.")
+			drawText(screen, (w-38)/2, h-2, cyanStyle, "Press Space or Enter to quit")
+		}
+	}
 }
 
 func splitLines(text string, maxWidth int) []string {

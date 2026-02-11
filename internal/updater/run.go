@@ -4,84 +4,82 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 
 	"terminal-td/internal/config"
 )
 
-const (
-	UpdaterNameUnix    = "terminal-td-updater"
-	UpdaterNameWindows = "terminal-td-updater.exe"
-)
+func RunUpdateWithProgress(release *Release, progress *Progress) {
+	defer func() {
+		progress.Done = true
+		if progress.Err != nil {
+			log.Printf("updater: failed: %v", progress.Err)
+		}
+	}()
 
-func RunUpdate(release *Release) error {
+	progress.Step = "Pinging server..."
+	progress.Percent = 0
 	updatesDir, err := config.UpdatesPath()
 	if err != nil {
-		return err
+		progress.Err = err
+		return
 	}
 
+	progress.Step = "Downloading..."
+	progress.Percent = 5
 	zipPath := filepath.Join(updatesDir, "terminal-td-new.zip")
-	if err := DownloadZip(release, zipPath); err != nil {
-		return err
+	err = DownloadZipWithProgress(release, zipPath, func(pct int) {
+		progress.Percent = 5 + (pct*70)/100
+	})
+	if err != nil {
+		progress.Err = err
+		return
 	}
 
+	progress.Step = "Extracting..."
+	progress.Percent = 75
 	extractDir := filepath.Join(updatesDir, "extract")
 	if err := os.RemoveAll(extractDir); err != nil {
-		return fmt.Errorf("clear extract dir: %w", err)
+		progress.Err = fmt.Errorf("clear extract dir: %w", err)
+		return
 	}
 	if err := ExtractZip(zipPath, extractDir); err != nil {
-		return err
+		progress.Err = err
+		return
 	}
+	progress.Percent = 85
 
-	newExePath, err := FindGameExeInDir(extractDir)
+	newExePath, err := FindGameExeInDir(extractDir, release.TagName)
 	if err != nil {
-		return err
+		progress.Err = err
+		return
 	}
 
+	progress.Step = "Replacing..."
+	progress.Percent = 90
 	currentExe, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("executable path: %w", err)
+		progress.Err = fmt.Errorf("executable path: %w", err)
+		return
 	}
 	currentExe, err = filepath.EvalSymlinks(currentExe)
 	if err != nil {
-		return fmt.Errorf("resolve exe: %w", err)
+		progress.Err = fmt.Errorf("resolve exe: %w", err)
+		return
 	}
-	currentDir := filepath.Dir(currentExe)
-	updaterPath := filepath.Join(currentDir, updaterName())
-
-	newUpdaterPath := filepath.Join(filepath.Dir(newExePath), updaterName())
-	if data, err := os.ReadFile(newUpdaterPath); err == nil {
-		dest := filepath.Join(currentDir, updaterName())
-		if err := os.WriteFile(dest, data, 0755); err != nil {
-			log.Printf("updater: copy new updater binary: %v", err)
-		}
-	}
-
-	changelogPath, err := WriteChangelogFile(release.Body)
+	data, err := os.ReadFile(newExePath)
 	if err != nil {
-		log.Printf("updater: write changelog: %v", err)
-		changelogPath = ""
+		progress.Err = fmt.Errorf("read new binary: %w", err)
+		return
 	}
-
-	cmd := exec.Command(updaterPath,
-		"-current", currentExe,
-		"-new", newExePath,
-		"-changelog", changelogPath,
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start updater: %w", err)
+	if err := os.WriteFile(currentExe, data, 0755); err != nil {
+		progress.Err = fmt.Errorf("replace exe (close and run again if on Windows): %w", err)
+		return
 	}
-	os.Exit(0)
-	return nil
-}
-
-func updaterName() string {
-	if runtime.GOOS == "windows" {
-		return UpdaterNameWindows
+	if runtime.GOOS != "windows" {
+		_ = os.Chmod(currentExe, 0755)
 	}
-	return UpdaterNameUnix
+	log.Printf("updater: replaced %s with new binary", currentExe)
+	progress.Percent = 100
 }

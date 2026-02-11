@@ -17,11 +17,9 @@ write_readme() {
 	cat > "$dir/readme.txt" << 'EOF'
 TERMINAL TOWER DEFENSE
 
-Files in this folder:
-- The game binary (terminal-td-*): run this to play.
-- terminal-td-updater: helper used when you install an update from inside the game. Do not delete; keep it next to the game.
+Run the game binary (terminal-td-*) to play. Updates are installed from inside the game (Settings: Check for updates).
 
-Mac users: macOS may block the app because it is unsigned. If you see "cannot be opened" / "not verified", you can follow what is mentioned in the README.md file of repo - https://github.com/Larry8668/terminal-td/blob/main/README.md.
+Mac users: macOS may block the app because it is unsigned. If you see "cannot be opened" / "not verified", see README.md in the repo - https://github.com/Larry8668/terminal-td/blob/main/README.md.
 EOF
 }
 
@@ -30,7 +28,6 @@ build_windows() {
 	mkdir -p "$dir"
 	echo "Building for Windows (amd64)..."
 	GOOS=windows GOARCH=amd64 go build -o "$dir/terminal-td-windows.exe" cmd/game/main.go
-	GOOS=windows GOARCH=amd64 go build -o "$dir/terminal-td-updater.exe" cmd/updater/main.go
 	write_readme "$dir"
 }
 
@@ -39,7 +36,6 @@ build_linux() {
 	mkdir -p "$dir"
 	echo "Building for Linux (amd64)..."
 	GOOS=linux GOARCH=amd64 go build -o "$dir/terminal-td-linux" cmd/game/main.go
-	GOOS=linux GOARCH=amd64 go build -o "$dir/terminal-td-updater" cmd/updater/main.go
 	write_readme "$dir"
 }
 
@@ -48,7 +44,6 @@ build_mac_intel() {
 	mkdir -p "$dir"
 	echo "Building for macOS Intel (amd64)..."
 	GOOS=darwin GOARCH=amd64 go build -o "$dir/terminal-td-mac-intel" cmd/game/main.go
-	GOOS=darwin GOARCH=amd64 go build -o "$dir/terminal-td-updater" cmd/updater/main.go
 	write_readme "$dir"
 }
 
@@ -57,7 +52,6 @@ build_mac_arm() {
 	mkdir -p "$dir"
 	echo "Building for macOS ARM (arm64)..."
 	GOOS=darwin GOARCH=arm64 go build -o "$dir/terminal-td-mac-arm" cmd/game/main.go
-	GOOS=darwin GOARCH=arm64 go build -o "$dir/terminal-td-updater" cmd/updater/main.go
 	write_readme "$dir"
 }
 

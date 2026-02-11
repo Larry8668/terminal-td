@@ -3,3 +3,4 @@ terminal-td
 debug.log
 builds/
 .DS_Store
+test-server/

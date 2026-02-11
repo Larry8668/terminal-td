@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	DefaultOwner = "Larry8668"
-	DefaultRepo  = "terminal-td"
-	APIBase      = "https://api.github.com"
+	DefaultOwner   = "Larry8668"
+	DefaultRepo    = "terminal-td"
+	DefaultAPIBase = "https://api.github.com"
+	EnvUpdateAPI   = "TERMINAL_TD_UPDATE_API_BASE"
 )
 
 type Asset struct {
@@ -33,8 +34,24 @@ type Release struct {
 	Assets  []Asset `json:"assets"`
 }
 
+type Progress struct {
+	Step    string
+	Percent int
+	Done    bool
+	Err     error
+}
+
+func apiBase() string {
+	if b := os.Getenv(EnvUpdateAPI); b != "" {
+		return strings.TrimSuffix(b, "/")
+	}
+	return DefaultAPIBase
+}
+
 func FetchLatest(owner, repo string) (*Release, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/releases/latest", APIBase, owner, repo)
+	base := apiBase()
+	url := fmt.Sprintf("%s/repos/%s/%s/releases/latest", base, owner, repo)
+	log.Printf("updater: fetch latest release from %s", url)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -42,16 +59,20 @@ func FetchLatest(owner, repo string) (*Release, error) {
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		log.Printf("updater: fetch failed: %v", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		log.Printf("updater: fetch returned %s", resp.Status)
 		return nil, fmt.Errorf("releases/latest: %s", resp.Status)
 	}
 	var release Release
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		log.Printf("updater: decode response failed: %v", err)
 		return nil, err
 	}
+	log.Printf("updater: got release %s with %d assets", release.TagName, len(release.Assets))
 	return &release, nil
 }
 
@@ -113,6 +134,10 @@ func ZipAssetNameForCurrentPlatform(tag string) (string, error) {
 }
 
 func DownloadZip(release *Release, destPath string) error {
+	return DownloadZipWithProgress(release, destPath, nil)
+}
+
+func DownloadZipWithProgress(release *Release, destPath string, setPercent func(int)) error {
 	name, err := ZipAssetNameForCurrentPlatform(release.TagName)
 	if err != nil {
 		return err
@@ -125,15 +150,18 @@ func DownloadZip(release *Release, destPath string) error {
 		}
 	}
 	if downloadURL == "" {
+		log.Printf("updater: no asset %q in release (have %d assets)", name, len(release.Assets))
 		return fmt.Errorf("no asset named %q found in release", name)
 	}
-	log.Printf("updater: downloading %s", downloadURL)
+	log.Printf("updater: downloading zip from %s -> %s", downloadURL, destPath)
 	resp, err := http.Get(downloadURL)
 	if err != nil {
+		log.Printf("updater: download request failed: %v", err)
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		log.Printf("updater: download returned %s", resp.Status)
 		return fmt.Errorf("download: %s", resp.Status)
 	}
 	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
@@ -144,17 +172,59 @@ func DownloadZip(release *Release, destPath string) error {
 		return err
 	}
 	defer f.Close()
-	_, err = io.Copy(f, resp.Body)
-	if err != nil {
-		os.Remove(destPath)
-		return err
+	var n int64
+	total := resp.ContentLength
+	if total > 0 && setPercent != nil {
+		buf := make([]byte, 32*1024)
+		var lastPct int
+		for {
+			nr, er := resp.Body.Read(buf)
+			if nr > 0 {
+				nw, ew := f.Write(buf[:nr])
+				n += int64(nw)
+				if ew != nil {
+					os.Remove(destPath)
+					return ew
+				}
+				if nw != nr {
+					os.Remove(destPath)
+					return io.ErrShortWrite
+				}
+				pct := int(100 * n / total)
+				if pct != lastPct && pct <= 100 {
+					lastPct = pct
+					setPercent(pct)
+				}
+			}
+			if er != nil {
+				if er != io.EOF {
+					os.Remove(destPath)
+					return er
+				}
+				break
+			}
+		}
+		setPercent(100)
+	} else {
+		n, err = io.Copy(f, resp.Body)
+		if err != nil {
+			os.Remove(destPath)
+			log.Printf("updater: download write failed: %v", err)
+			return err
+		}
+		if setPercent != nil {
+			setPercent(100)
+		}
 	}
+	log.Printf("updater: downloaded %d bytes to %s", n, destPath)
 	return nil
 }
 
 func ExtractZip(zipPath, destDir string) error {
+	log.Printf("updater: extracting %s -> %s", zipPath, destDir)
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
+		log.Printf("updater: open zip failed: %v", err)
 		return fmt.Errorf("open zip: %w", err)
 	}
 	defer r.Close()
@@ -205,39 +275,36 @@ func ExtractZip(zipPath, destDir string) error {
 			_ = os.Chmod(join, f.Mode())
 		}
 	}
+	log.Printf("updater: extracted %d entries to %s", len(r.File), destDir)
 	return nil
 }
 
-func FindGameExeInDir(dir string) (string, error) {
+// ExpectedExtractFolderName returns the folder name inside the zip: terminal-td-<tag>-<platform>.
+// Zips must contain exactly this folder (build script outputs this); we ignore other top-level entries.
+func ExpectedExtractFolderName(tag string) (string, error) {
+	suffix, err := platformSuffix()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("terminal-td-%s-%s", tag, suffix), nil
+}
+
+func FindGameExeInDir(dir, releaseTag string) (string, error) {
 	exeName, err := gameExeName()
 	if err != nil {
 		return "", err
 	}
-	atRoot := filepath.Join(dir, exeName)
-	if info, err := os.Stat(atRoot); err == nil && !info.IsDir() {
-		return atRoot, nil
-	}
-	entries, err := os.ReadDir(dir)
+	folderName, err := ExpectedExtractFolderName(releaseTag)
 	if err != nil {
 		return "", err
 	}
-	var singleDir string
-	for _, e := range entries {
-		if e.IsDir() {
-			if singleDir != "" {
-				return "", fmt.Errorf("multiple top-level dirs in zip")
-			}
-			singleDir = e.Name()
-		}
+	exePath := filepath.Join(dir, folderName, exeName)
+	if info, err := os.Stat(exePath); err == nil && !info.IsDir() {
+		log.Printf("updater: found game exe at %s", exePath)
+		return exePath, nil
 	}
-	if singleDir == "" {
-		return "", fmt.Errorf("game binary %q not found in zip", exeName)
-	}
-	inSub := filepath.Join(dir, singleDir, exeName)
-	if info, err := os.Stat(inSub); err == nil && !info.IsDir() {
-		return inSub, nil
-	}
-	return "", fmt.Errorf("game binary %q not found in zip", exeName)
+	log.Printf("updater: expected %s/%s not found in zip", folderName, exeName)
+	return "", fmt.Errorf("expected folder %q with game binary %q not found in zip", folderName, exeName)
 }
 
 func WriteChangelogFile(body string) (path string, err error) {
