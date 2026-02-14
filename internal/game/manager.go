@@ -27,9 +27,9 @@ type GameManager struct {
 	State GameState
 	Mode  InteractionMode
 
-	SelectedTowerX int
-	SelectedTowerY int
-	SelectingWallTarget    bool
+	SelectedTowerX            int
+	SelectedTowerY            int
+	SelectingWallTarget       bool
 	SelectingWallRemoveTarget bool
 
 	CurrentWave int
