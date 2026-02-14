@@ -2,10 +2,13 @@ package render
 
 import (
 	"fmt"
-	"github.com/gdamore/tcell/v2"
 	"math"
 	"strings"
+
+	"github.com/gdamore/tcell/v2"
+
 	"terminal-td/internal/entities"
+	"terminal-td/internal/flow"
 	"terminal-td/internal/game"
 	mapdata "terminal-td/internal/map"
 )
@@ -18,9 +21,9 @@ func DrawGridWithHighlights(screen tcell.Screen, grid *mapdata.Grid, mapData *ma
 	defaultStyle := tcell.StyleDefault
 	redStyle := tcell.StyleDefault.Foreground(tcell.ColorRed)
 	blinkRedStyle := tcell.StyleDefault.Foreground(tcell.ColorRed).Bold(true)
-	
-	shouldBlink := int(blinkTimer*4) % 2 == 0
-	
+
+	shouldBlink := int(blinkTimer*4)%2 == 0
+
 	spawnPositions := make(map[int]map[int]string)
 	if mapData != nil {
 		for _, spawn := range mapData.Spawns {
@@ -30,7 +33,7 @@ func DrawGridWithHighlights(screen tcell.Screen, grid *mapdata.Grid, mapData *ma
 			spawnPositions[spawn.Y][spawn.X] = spawn.ID
 		}
 	}
-	
+
 	for y := 0; y < grid.Height; y++ {
 		for x := 0; x < grid.Width; x++ {
 			var ch rune
@@ -72,6 +75,16 @@ func DrawEnemies(screen tcell.Screen, enemies []*entities.Enemy, offsetX, offset
 	}
 }
 
+// DrawPathPreview draws traced paths from spawns to base (dim overlay). Call during pre-wave.
+func DrawPathPreview(screen tcell.Screen, paths [][]flow.Tile, offsetX, offsetY int) {
+	style := tcell.StyleDefault.Foreground(tcell.Color(6)).Dim(true)
+	for _, path := range paths {
+		for _, t := range path {
+			screen.SetContent(offsetX+t.X, offsetY+t.Y, '·', nil, style)
+		}
+	}
+}
+
 func DrawUI(screen tcell.Screen, g *game.Game) {
 	w, _ := screen.Size()
 
@@ -84,6 +97,10 @@ func DrawUI(screen tcell.Screen, g *game.Game) {
 	drawText(screen, 0, 0, whiteStyle, waveText)
 	drawText(screen, 0, 1, whiteStyle, enemyText)
 	drawText(screen, 0, 2, whiteStyle, hpText)
+	if flowDebug := g.FlowDebugString(); flowDebug != "" {
+		cyanStyle := tcell.StyleDefault.Foreground(tcell.Color(6))
+		drawText(screen, 0, 3, cyanStyle, flowDebug)
+	}
 
 	rightEdgeX := w - 2
 

@@ -2,7 +2,7 @@ package waves
 
 // WaveDef is the JSON-serializable wave definition.
 type WaveDef struct {
-	Wave   int           `json:"wave"`
+	Wave   int             `json:"wave"`
 	Groups []SpawnGroupDef `json:"groups"`
 }
 

@@ -1,10 +1,11 @@
 package game
 
 import (
+	"fmt"
 	"log"
-	// "math"
-	"terminal-td/internal/entities"
 	"terminal-td/internal/enemies"
+	"terminal-td/internal/entities"
+	"terminal-td/internal/flow"
 	mapdata "terminal-td/internal/map"
 	waves "terminal-td/internal/waves"
 	"time"
@@ -18,11 +19,14 @@ type Game struct {
 	Towers      []*entities.Tower
 	Projectiles []*entities.Projectile
 
-	Wave         *waves.WaveManager
-	EnemyDB      *enemies.EnemyDatabase
-	LegacyWave   WaveManager // kept for backward compat during transition
-	Base         Base
-	Speed        float64
+	Wave       *waves.WaveManager
+	EnemyDB    *enemies.EnemyDatabase
+	LegacyWave WaveManager // kept for backward compat during transition
+	Base       Base
+	Speed      float64
+
+	FlowField *flow.Field
+	Walkable  [][]bool
 
 	Money int
 
@@ -76,6 +80,9 @@ func NewGameFromMap(m *mapdata.GameMap) *Game {
 
 	waveMgr := waves.NewWaveManager(waveDefs)
 
+	walkable := flow.BuildWalkability(grid)
+	flowField := flow.Compute(grid.Width, grid.Height, walkable, m.Base.X, m.Base.Y)
+
 	g := &Game{
 		Map:         m,
 		Grid:        grid,
@@ -83,8 +90,10 @@ func NewGameFromMap(m *mapdata.GameMap) *Game {
 		Towers:      []*entities.Tower{},
 		Projectiles: []*entities.Projectile{},
 
-		Wave:    waveMgr,
-		EnemyDB: enemyDB,
+		Wave:      waveMgr,
+		EnemyDB:   enemyDB,
+		FlowField: flowField,
+		Walkable:  walkable,
 
 		Money: 500,
 
@@ -120,12 +129,18 @@ func newGameLegacy() *Game {
 	path := mapdata.DefaultPath()
 	mapdata.ApplyPath(grid, path)
 
+	walkable := flow.BuildWalkability(grid)
+	flowField := flow.Compute(grid.Width, grid.Height, walkable, 79, 22)
+
 	g := &Game{
 		Map:         nil,
 		Grid:        grid,
 		Path:        path,
 		Towers:      []*entities.Tower{},
 		Projectiles: []*entities.Projectile{},
+
+		FlowField: flowField,
+		Walkable:  walkable,
 
 		Money: 500,
 
@@ -190,7 +205,7 @@ func (g *Game) spawnEnemy(enemyTypeID string, spawnID string) {
 	if g.Wave != nil {
 		g.Wave.EnemiesAlive++
 	}
-	log.Printf("DEBUG: Enemy spawned (type=%s spawn=%s, Alive: %d)", enemyTypeID, spawnID, g.Wave.EnemiesAlive)
+	log.Printf("DEBUG: Enemy spawned (type=%s spawn=%s pos=(%.1f,%.1f) Alive: %d)", enemyTypeID, spawnID, enemy.X, enemy.Y, g.Wave.EnemiesAlive)
 }
 
 func (g *Game) updateSpawning(dt float64) {
@@ -264,6 +279,8 @@ func (g *Game) updateSpawningLegacy(dt float64) {
 	}
 }
 
+const flowReachedBaseDist = 0.5
+
 func (g *Game) updateEnemies(dt float64) {
 	alive := []*entities.Enemy{}
 
@@ -278,7 +295,19 @@ func (g *Game) updateEnemies(dt float64) {
 			continue
 		}
 
-		e.Update(dt)
+		if g.FlowField != nil {
+			dist, dir := g.FlowField.AtFloat(e.X, e.Y)
+			if dist >= flow.Inf {
+				log.Printf("DEBUG: flow unreachable at (%.1f,%.1f) dist=Inf → marking reached base", e.X, e.Y)
+				e.ReachedBase = true
+			} else if dist < flowReachedBaseDist {
+				e.ReachedBase = true
+			} else {
+				e.UpdateFlow(dt, dir.X, dir.Y)
+			}
+		} else {
+			e.Update(dt)
+		}
 
 		if e.ReachedBase {
 			g.Base.HP--
@@ -287,7 +316,7 @@ func (g *Game) updateEnemies(dt float64) {
 			} else {
 				g.LegacyWave.EnemiesAlive--
 			}
-			log.Printf("DEBUG: Enemy reached base (Base HP: %d, Enemies alive: %d)", g.Base.HP, g.GetEnemiesAlive())
+			log.Printf("DEBUG: Enemy reached base at (%.1f,%.1f) Base HP: %d Enemies alive: %d", e.X, e.Y, g.Base.HP, g.GetEnemiesAlive())
 			if g.Base.HP <= 0 {
 				log.Println("DEBUG: Base destroyed - game lost")
 				g.Manager.OnBaseDestroyed()
@@ -299,6 +328,19 @@ func (g *Game) updateEnemies(dt float64) {
 	}
 
 	g.Enemies = alive
+}
+
+// FlowDebugString returns a short debug line when flow field is active and there are enemies (for on-screen debug).
+func (g *Game) FlowDebugString() string {
+	if g.FlowField == nil || len(g.Enemies) == 0 {
+		return ""
+	}
+	e := g.Enemies[0]
+	dist, _ := g.FlowField.AtFloat(e.X, e.Y)
+	if dist >= flow.Inf {
+		return "Flow: unreachable"
+	}
+	return fmt.Sprintf("Flow dist: %.1f pos:(%.0f,%.0f)", dist, e.X, e.Y)
 }
 
 func (g *Game) GetEnemiesAlive() int {
@@ -336,6 +378,29 @@ func (g *Game) GetNextWaveSpawnIDs() map[string]bool {
 		}
 	}
 	return spawnIDs
+}
+
+// TracePathsForNextWave returns flow-field paths from each active spawn to base for pre-wave preview.
+// Each path is a slice of (x,y) tiles. Only valid when FlowField and Map are set.
+func (g *Game) TracePathsForNextWave() [][]flow.Tile {
+	if g.FlowField == nil || g.Map == nil {
+		return nil
+	}
+	spawnIDs := g.GetNextWaveSpawnIDs()
+	if len(spawnIDs) == 0 {
+		return nil
+	}
+	var paths [][]flow.Tile
+	for _, spawn := range g.Map.Spawns {
+		if !spawnIDs[spawn.ID] {
+			continue
+		}
+		path := g.FlowField.TracePath(spawn.X, spawn.Y, g.Base.X, g.Base.Y)
+		if len(path) > 0 {
+			paths = append(paths, path)
+		}
+	}
+	return paths
 }
 
 func (g *Game) updateWaveState() {
@@ -403,6 +468,9 @@ func (g *Game) Reset() {
 	g.Enemies = nil
 	g.Towers = []*entities.Tower{}
 	g.Projectiles = []*entities.Projectile{}
+
+	g.Walkable = flow.BuildWalkability(g.Grid)
+	g.FlowField = flow.Compute(g.Grid.Width, g.Grid.Height, g.Walkable, g.Base.X, g.Base.Y)
 
 	if g.Map != nil {
 		g.Base.HP = g.Map.Base.HP
@@ -561,17 +629,17 @@ func (g *Game) updateProjectiles(dt float64) {
 		proj.Update(dt)
 
 		if proj.HasHit {
-				if proj.TargetEnemy != nil && proj.TargetEnemy.HP > 0 {
-					proj.TargetEnemy.HP -= proj.Damage
-					if proj.TargetEnemy.HP <= 0 {
-						reward := proj.TargetEnemy.Reward
-						if reward == 0 {
-							reward = 10
-						}
-						g.Money += reward
-						g.Score.Points += reward
+			if proj.TargetEnemy != nil && proj.TargetEnemy.HP > 0 {
+				proj.TargetEnemy.HP -= proj.Damage
+				if proj.TargetEnemy.HP <= 0 {
+					reward := proj.TargetEnemy.Reward
+					if reward == 0 {
+						reward = 10
 					}
+					g.Money += reward
+					g.Score.Points += reward
 				}
+			}
 			continue
 		}
 		if proj.TargetEnemy != nil && proj.TargetEnemy.HP > 0 {

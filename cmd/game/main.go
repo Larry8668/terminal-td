@@ -215,7 +215,7 @@ func main() {
 	for running {
 		select {
 
-			case <-ticker.C:
+		case <-ticker.C:
 			dt := tickRate.Seconds()
 
 			screen.Clear()
@@ -272,6 +272,11 @@ func main() {
 					highlightSpawns = g.GetNextWaveSpawnIDs()
 				}
 				render.DrawGridWithHighlights(screen, g.Grid, g.Map, offsetX, offsetY, highlightSpawns, blinkTimer)
+
+				if g.Manager.State == game.StatePreWave && g.FlowField != nil {
+					pathPreview := g.TracePathsForNextWave()
+					render.DrawPathPreview(screen, pathPreview, offsetX, offsetY)
+				}
 
 				if g.Manager.Mode == game.ModeBuild {
 					templates := game.GetTowerTemplates()
