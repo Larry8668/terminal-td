@@ -43,6 +43,8 @@ func buildGameMap(def *MapDef) (*GameMap, error) {
 	}
 
 	pathsBySpawn := make(map[string]Path)
+	grid := NewGrid(def.Grid.Width, def.Grid.Height)
+
 	for _, pd := range def.Paths {
 		if pd.SpawnID == "" {
 			return nil, fmt.Errorf("path with empty spawn_id")
@@ -60,20 +62,27 @@ func buildGameMap(def *MapDef) (*GameMap, error) {
 				return nil, fmt.Errorf("path point (%d,%d) out of bounds", p.X, p.Y)
 			}
 		}
-		pathsBySpawn[pd.SpawnID] = Path{Points: points}
+		path := Path{Points: points}
+		sp := spawnByID[pd.SpawnID]
+		start := path.Points[0]
+		if start.X == sp.X && start.Y == sp.Y {
+			pathsBySpawn[pd.SpawnID] = path
+		} else if _, set := pathsBySpawn[pd.SpawnID]; !set {
+			pathsBySpawn[pd.SpawnID] = path
+		}
+		ApplyPathSegmentsOnly(grid, path)
 	}
+	for _, s := range def.Spawns {
+		sp := spawnByID[s.ID]
+		grid.Tiles[sp.Y][sp.X] = SpawnTile
+	}
+	grid.Tiles[def.Base.Y][def.Base.X] = BaseTile
 
 	if def.Base.X < 0 || def.Base.X >= def.Grid.Width || def.Base.Y < 0 || def.Base.Y >= def.Grid.Height {
 		return nil, fmt.Errorf("base (%d,%d) out of bounds", def.Base.X, def.Base.Y)
 	}
 	if def.Base.HP <= 0 {
 		return nil, fmt.Errorf("base hp must be positive, got %d", def.Base.HP)
-	}
-
-	grid := NewGrid(def.Grid.Width, def.Grid.Height)
-	for _, pd := range def.Paths {
-		path := pathsBySpawn[pd.SpawnID]
-		applyPathToGrid(grid, path, def.Base.X, def.Base.Y)
 	}
 
 	spawns := make([]SpawnPoint, 0, len(def.Spawns))

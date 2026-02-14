@@ -277,6 +277,9 @@ func main() {
 					pathPreview := g.TracePathsForNextWave()
 					render.DrawPathPreview(screen, pathPreview, offsetX, offsetY)
 				}
+				if len(g.Walls) > 0 {
+					render.DrawBlockedOverlay(screen, g.ComputeBlockedTiles(), offsetX, offsetY)
+				}
 
 				if g.Manager.Mode == game.ModeBuild {
 					templates := game.GetTowerTemplates()
@@ -293,7 +296,14 @@ func main() {
 					}
 				}
 
-				render.DrawTower(screen, g.Towers, offsetX, offsetY)
+				var linkable, removeWall [][2]int
+				if g.Manager.Mode == game.ModeSelect {
+					linkable = g.GetLinkableTowers(g.Manager.SelectedTowerX, g.Manager.SelectedTowerY)
+					if g.Manager.SelectingWallRemoveTarget {
+						removeWall = g.GetWallsForTower(g.Manager.SelectedTowerX, g.Manager.SelectedTowerY)
+					}
+				}
+				render.DrawTower(screen, g.Towers, offsetX, offsetY, linkable, removeWall)
 				render.DrawEnemies(screen, g.Enemies, offsetX, offsetY)
 				render.DrawProjectiles(screen, g.Projectiles, offsetX, offsetY)
 				render.DrawUI(screen, g)
@@ -576,8 +586,61 @@ func main() {
 								g.Manager.Mode = game.ModeBuild
 							}
 						} else if g.Manager.Mode == game.ModeSelect {
-							log.Println("DEBUG: Deselecting tower")
-							g.Manager.Mode = game.ModeNormal
+							if g.Manager.SelectingWallTarget {
+								linkable := g.GetLinkableTowers(g.Manager.SelectedTowerX, g.Manager.SelectedTowerY)
+								for _, p := range linkable {
+									if p[0] == g.CursorX && p[1] == g.CursorY {
+										if g.AddWall(g.Manager.SelectedTowerX, g.Manager.SelectedTowerY, p[0], p[1]) {
+											g.Manager.SelectingWallTarget = false
+											g.Manager.Mode = game.ModeNormal
+										}
+										break
+									}
+								}
+							} else if g.Manager.SelectingWallRemoveTarget {
+								wallsFor := g.GetWallsForTower(g.Manager.SelectedTowerX, g.Manager.SelectedTowerY)
+								for _, p := range wallsFor {
+									if p[0] == g.CursorX && p[1] == g.CursorY {
+										if g.RemoveWall(g.Manager.SelectedTowerX, g.Manager.SelectedTowerY, p[0], p[1]) {
+											g.Manager.SelectingWallRemoveTarget = false
+											g.Manager.Mode = game.ModeNormal
+										}
+										break
+									}
+								}
+							} else {
+								log.Println("DEBUG: Deselecting tower")
+								g.Manager.Mode = game.ModeNormal
+							}
+						}
+					case '0':
+						if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm && g.Manager.Mode == game.ModeSelect {
+							if g.Manager.SelectingWallTarget || g.Manager.SelectingWallRemoveTarget {
+								g.Manager.SelectingWallTarget = false
+								g.Manager.SelectingWallRemoveTarget = false
+							} else {
+								g.Manager.Mode = game.ModeNormal
+							}
+						}
+					case '1':
+						if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm && g.Manager.Mode == game.ModeSelect && !g.Manager.SelectingWallTarget && !g.Manager.SelectingWallRemoveTarget {
+							linkable := g.GetLinkableTowers(g.Manager.SelectedTowerX, g.Manager.SelectedTowerY)
+							if len(linkable) > 0 {
+								g.Manager.SelectingWallTarget = true
+							}
+						}
+					case '2':
+						if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm && g.Manager.Mode == game.ModeSelect && !g.Manager.SelectingWallTarget && !g.Manager.SelectingWallRemoveTarget {
+							wallsFor := g.GetWallsForTower(g.Manager.SelectedTowerX, g.Manager.SelectedTowerY)
+							if len(wallsFor) > 0 {
+								g.Manager.SelectingWallRemoveTarget = true
+							}
+						}
+					case '3':
+						if g.Manager.State != game.StateMenu && g.Manager.State != game.StateQuitConfirm && g.Manager.Mode == game.ModeSelect && !g.Manager.SelectingWallTarget && !g.Manager.SelectingWallRemoveTarget {
+							if g.SellTower(g.Manager.SelectedTowerX, g.Manager.SelectedTowerY) {
+								g.Manager.Mode = game.ModeNormal
+							}
 						}
 					}
 				}

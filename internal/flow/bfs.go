@@ -56,6 +56,7 @@ func ComputeDirections(field *Field, walkable [][]bool) {
 			bestNx, bestNy := -1, -1
 			bestDist := cur
 
+			// Neighbor order: up, down, left, right. When multiple neighbors have the same distance, we pick the first (deterministic).
 			for i := 0; i < 4; i++ {
 				nx, ny := x+dx[i], y+dy[i]
 				if nx < 0 || nx >= field.Width || ny < 0 || ny >= field.Height {

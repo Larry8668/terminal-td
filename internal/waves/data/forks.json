@@ -1,0 +1,169 @@
+{
+  "waves": [
+    {
+      "wave": 1,
+      "groups": [
+        {
+          "spawn_id": "north",
+          "enemy_type": "basic",
+          "count": 3,
+          "interval": 1.2,
+          "start_delay": 0
+        },
+        {
+          "spawn_id": "center",
+          "enemy_type": "basic",
+          "count": 4,
+          "interval": 1.0,
+          "start_delay": 0.5
+        },
+        {
+          "spawn_id": "south",
+          "enemy_type": "basic",
+          "count": 3,
+          "interval": 1.2,
+          "start_delay": 1.0
+        }
+      ]
+    },
+    {
+      "wave": 2,
+      "groups": [
+        {
+          "spawn_id": "north",
+          "enemy_type": "basic",
+          "count": 6,
+          "interval": 0.9,
+          "start_delay": 0
+        },
+        {
+          "spawn_id": "center",
+          "enemy_type": "basic",
+          "count": 8,
+          "interval": 0.8,
+          "start_delay": 1.0
+        },
+        {
+          "spawn_id": "south",
+          "enemy_type": "basic",
+          "count": 6,
+          "interval": 0.9,
+          "start_delay": 2.0
+        }
+      ]
+    },
+    {
+      "wave": 3,
+      "groups": [
+        {
+          "spawn_id": "north",
+          "enemy_type": "basic",
+          "count": 8,
+          "interval": 0.7,
+          "start_delay": 0
+        },
+        {
+          "spawn_id": "center",
+          "enemy_type": "basic",
+          "count": 10,
+          "interval": 0.6,
+          "start_delay": 0.5
+        },
+        {
+          "spawn_id": "south",
+          "enemy_type": "basic",
+          "count": 8,
+          "interval": 0.7,
+          "start_delay": 1.0
+        },
+        {
+          "spawn_id": "center",
+          "enemy_type": "fast",
+          "count": 4,
+          "interval": 1.5,
+          "start_delay": 3.0
+        }
+      ]
+    },
+    {
+      "wave": 4,
+      "groups": [
+        {
+          "spawn_id": "north",
+          "enemy_type": "basic",
+          "count": 10,
+          "interval": 0.6,
+          "start_delay": 0
+        },
+        {
+          "spawn_id": "center",
+          "enemy_type": "basic",
+          "count": 12,
+          "interval": 0.5,
+          "start_delay": 0.5
+        },
+        {
+          "spawn_id": "south",
+          "enemy_type": "basic",
+          "count": 10,
+          "interval": 0.6,
+          "start_delay": 1.0
+        },
+        {
+          "spawn_id": "center",
+          "enemy_type": "tank",
+          "count": 2,
+          "interval": 3.0,
+          "start_delay": 5.0
+        }
+      ]
+    },
+    {
+      "wave": 5,
+      "groups": [
+        {
+          "spawn_id": "north",
+          "enemy_type": "basic",
+          "count": 12,
+          "interval": 0.5,
+          "start_delay": 0
+        },
+        {
+          "spawn_id": "center",
+          "enemy_type": "basic",
+          "count": 14,
+          "interval": 0.45,
+          "start_delay": 0.3
+        },
+        {
+          "spawn_id": "south",
+          "enemy_type": "basic",
+          "count": 12,
+          "interval": 0.5,
+          "start_delay": 0.6
+        },
+        {
+          "spawn_id": "north",
+          "enemy_type": "fast",
+          "count": 4,
+          "interval": 1.2,
+          "start_delay": 2.0
+        },
+        {
+          "spawn_id": "south",
+          "enemy_type": "fast",
+          "count": 4,
+          "interval": 1.2,
+          "start_delay": 2.5
+        },
+        {
+          "spawn_id": "center",
+          "enemy_type": "tank",
+          "count": 3,
+          "interval": 2.5,
+          "start_delay": 7.0
+        }
+      ]
+    }
+  ]
+}

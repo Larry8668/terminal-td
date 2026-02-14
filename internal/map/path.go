@@ -26,8 +26,9 @@ func ApplyPath(grid *Grid, path Path) {
 	applyPathToGrid(grid, path, -1, -1)
 }
 
-// applyPathToGrid draws path segments and spawn; if baseX, baseY >= 0 uses them for base tile, else path end.
-func applyPathToGrid(grid *Grid, path Path, baseX, baseY int) {
+// ApplyPathSegmentsOnly marks tiles along path segments as PathTile only (no spawn/base).
+// Used by the loader when spawn and base come from map def, so fork start points stay path.
+func ApplyPathSegmentsOnly(grid *Grid, path Path) {
 	for i := 0; i < len(path.Points)-1; i++ {
 		a := path.Points[i]
 		b := path.Points[i+1]
@@ -43,6 +44,11 @@ func applyPathToGrid(grid *Grid, path Path, baseX, baseY int) {
 			}
 		}
 	}
+}
+
+// applyPathToGrid draws path segments and spawn; if baseX, baseY >= 0 uses them for base tile, else path end.
+func applyPathToGrid(grid *Grid, path Path, baseX, baseY int) {
+	ApplyPathSegmentsOnly(grid, path)
 	start := path.Points[0]
 	grid.Tiles[start.Y][start.X] = SpawnTile
 	if baseX >= 0 && baseY >= 0 {

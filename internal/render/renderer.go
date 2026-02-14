@@ -85,6 +85,14 @@ func DrawPathPreview(screen tcell.Screen, paths [][]flow.Tile, offsetX, offsetY 
 	}
 }
 
+// DrawBlockedOverlay draws blocked path tiles (wall segments) as '#'.
+func DrawBlockedOverlay(screen tcell.Screen, blockedTiles [][2]int, offsetX, offsetY int) {
+	style := tcell.StyleDefault.Foreground(tcell.Color(8)).Dim(true)
+	for _, p := range blockedTiles {
+		screen.SetContent(offsetX+p[0], offsetY+p[1], '#', nil, style)
+	}
+}
+
 func DrawUI(screen tcell.Screen, g *game.Game) {
 	w, _ := screen.Size()
 
@@ -151,10 +159,28 @@ func DrawCursor(screen tcell.Screen, cursorX, cursorY, offsetX, offsetY int) {
 	screen.SetContent(offsetX+cursorX, offsetY+cursorY, '+', nil, style)
 }
 
-func DrawTower(screen tcell.Screen, towers []*entities.Tower, offsetX, offsetY int) {
+func DrawTower(screen tcell.Screen, towers []*entities.Tower, offsetX, offsetY int, linkableTowers, removeWallTowers [][2]int) {
+	linkableSet := make(map[[2]int]bool)
+	for _, p := range linkableTowers {
+		linkableSet[p] = true
+	}
+	removeSet := make(map[[2]int]bool)
+	for _, p := range removeWallTowers {
+		removeSet[p] = true
+	}
+	greenStyle := tcell.StyleDefault.Foreground(tcell.ColorGreen)
+	yellowStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow)
 	for _, tower := range towers {
-		style := tcell.StyleDefault.Foreground(tcell.Color(tower.Color))
-		screen.SetContent(offsetX+tower.X, offsetY+tower.Y, tower.Symbol, nil, style)
+		pos := [2]int{tower.X, tower.Y}
+		switch {
+		case removeSet[pos]:
+			screen.SetContent(offsetX+tower.X, offsetY+tower.Y, tower.Symbol, nil, yellowStyle)
+		case linkableSet[pos]:
+			screen.SetContent(offsetX+tower.X, offsetY+tower.Y, tower.Symbol, nil, greenStyle)
+		default:
+			style := tcell.StyleDefault.Foreground(tcell.Color(tower.Color))
+			screen.SetContent(offsetX+tower.X, offsetY+tower.Y, tower.Symbol, nil, style)
+		}
 	}
 }
 
@@ -202,14 +228,31 @@ func DrawBottomHUD(screen tcell.Screen, g *game.Game) {
 		if tower != nil {
 			templates := game.GetTowerTemplates()
 			template := templates[tower.Type]
-
 			dps := tower.Damage * tower.FireRate
+			linkable := g.GetLinkableTowers(g.Manager.SelectedTowerX, g.Manager.SelectedTowerY)
+			greyStyle := tcell.StyleDefault.Foreground(tcell.Color(8)).Dim(true)
 
+			wallsForTower := g.GetWallsForTower(g.Manager.SelectedTowerX, g.Manager.SelectedTowerY)
 			drawText(screen, 0, hudStartY+1, whiteStyle, fmt.Sprintf("Tower: [%c] %s", tower.Symbol, template.Name))
-			drawText(screen, 0, hudStartY+2, whiteStyle, fmt.Sprintf("DPS: %.1f | Damage: %.0f | Fire Rate: %.1f/s | Range: %.1f",
-				dps, tower.Damage, tower.FireRate, tower.Range))
-			drawText(screen, 0, hudStartY+3, whiteStyle, fmt.Sprintf("Cooldown: %.2fs", tower.Cooldown))
-			drawText(screen, 0, hudStartY+4, cyanStyle, "Press SPACE/ESC to deselect")
+			drawText(screen, 0, hudStartY+2, whiteStyle, fmt.Sprintf("DPS: %.1f | Range: %.1f", dps, tower.Range))
+			if g.Manager.SelectingWallTarget {
+				drawText(screen, 0, hudStartY+3, cyanStyle, "Select a green tower to link (SPACE/ENTER), 0 cancel")
+			} else if g.Manager.SelectingWallRemoveTarget {
+				drawText(screen, 0, hudStartY+3, cyanStyle, "Select a yellow tower to remove wall (SPACE/ENTER), 0 cancel")
+			} else {
+				if len(linkable) == 0 {
+					drawText(screen, 0, hudStartY+3, greyStyle, "1. Build wall (can't block last path to base)")
+				} else {
+					drawText(screen, 0, hudStartY+3, greenStyle, "1. Build wall")
+				}
+				if len(wallsForTower) == 0 {
+					drawText(screen, 0, hudStartY+4, greyStyle, "2. Remove wall (none)  ")
+					drawText(screen, 24, hudStartY+4, cyanStyle, "3. Sell tower  0. Deselect")
+				} else {
+					drawText(screen, 0, hudStartY+4, greenStyle, "2. Remove wall  ")
+					drawText(screen, 16, hudStartY+4, cyanStyle, "3. Sell tower  0. Deselect")
+				}
+			}
 		}
 	case game.ModeNormal:
 		moneyText := fmt.Sprintf("Money: %d", g.Money)

@@ -11,6 +11,11 @@ import (
 	"time"
 )
 
+// Wall links two towers and blocks path tiles on the segment between them.
+type Wall struct {
+	Ax, Ay, Bx, By int
+}
+
 type Game struct {
 	Map         *mapdata.GameMap
 	Grid        *mapdata.Grid
@@ -18,6 +23,7 @@ type Game struct {
 	Enemies     []*entities.Enemy
 	Towers      []*entities.Tower
 	Projectiles []*entities.Projectile
+	Walls       []Wall
 
 	Wave       *waves.WaveManager
 	EnemyDB    *enemies.EnemyDatabase
@@ -89,6 +95,7 @@ func NewGameFromMap(m *mapdata.GameMap) *Game {
 		Path:        path,
 		Towers:      []*entities.Tower{},
 		Projectiles: []*entities.Projectile{},
+		Walls:       nil,
 
 		Wave:      waveMgr,
 		EnemyDB:   enemyDB,
@@ -138,6 +145,7 @@ func newGameLegacy() *Game {
 		Path:        path,
 		Towers:      []*entities.Tower{},
 		Projectiles: []*entities.Projectile{},
+		Walls:       nil,
 
 		FlowField: flowField,
 		Walkable:  walkable,
@@ -468,9 +476,9 @@ func (g *Game) Reset() {
 	g.Enemies = nil
 	g.Towers = []*entities.Tower{}
 	g.Projectiles = []*entities.Projectile{}
+	g.Walls = nil
 
-	g.Walkable = flow.BuildWalkability(g.Grid)
-	g.FlowField = flow.Compute(g.Grid.Width, g.Grid.Height, g.Walkable, g.Base.X, g.Base.Y)
+	g.RecomputeFlow()
 
 	if g.Map != nil {
 		g.Base.HP = g.Map.Base.HP
@@ -558,6 +566,205 @@ func (g *Game) GetTowerAt(x, y int) *entities.Tower {
 		}
 	}
 	return nil
+}
+
+// ComputeBlockedTiles returns path tiles that lie on any wall segment (spawn/base stay walkable).
+func (g *Game) ComputeBlockedTiles() [][2]int {
+	seen := make(map[[2]int]bool)
+	var out [][2]int
+	for _, w := range g.Walls {
+		for _, p := range mapdata.TilesOnSegment(w.Ax, w.Ay, w.Bx, w.By) {
+			x, y := p[0], p[1]
+			if seen[[2]int{x, y}] {
+				continue
+			}
+			if y < 0 || y >= g.Grid.Height || x < 0 || x >= g.Grid.Width {
+				continue
+			}
+			if g.Grid.Tiles[y][x] != mapdata.PathTile {
+				continue
+			}
+			seen[[2]int{x, y}] = true
+			out = append(out, [2]int{x, y})
+		}
+	}
+	return out
+}
+
+// RecomputeFlow rebuilds walkability (including wall blocks) and flow field.
+func (g *Game) RecomputeFlow() {
+	blocked := g.ComputeBlockedTiles()
+	g.Walkable = flow.BuildWalkabilityWithBlocked(g.Grid, blocked)
+	g.FlowField = flow.Compute(g.Grid.Width, g.Grid.Height, g.Walkable, g.Base.X, g.Base.Y)
+	log.Printf("DEBUG: Flow recomputed (blocked tiles: %d)", len(blocked))
+}
+
+const maxWallLinkDist = 4
+
+// GetLinkableTowers returns positions (x,y) of towers that can form a wall with the tower at (ax,ay). Order is stable for HUD numbering.
+func (g *Game) GetLinkableTowers(ax, ay int) [][2]int {
+	var out [][2]int
+	for _, t := range g.Towers {
+		bx, by := t.X, t.Y
+		if ax == bx && ay == by {
+			continue
+		}
+		dx := ax - bx
+		if dx < 0 {
+			dx = -dx
+		}
+		dy := ay - by
+		if dy < 0 {
+			dy = -dy
+		}
+		if dx+dy > maxWallLinkDist {
+			continue
+		}
+		exists := false
+		for _, w := range g.Walls {
+			if (w.Ax == ax && w.Ay == ay && w.Bx == bx && w.By == by) || (w.Ax == bx && w.Ay == by && w.Bx == ax && w.By == ay) {
+				exists = true
+				break
+			}
+		}
+		if !exists && !g.WouldDisconnectSpawnsFromBase(ax, ay, bx, by) {
+			out = append(out, [2]int{bx, by})
+		}
+	}
+	return out
+}
+
+// GetWallsForTower returns positions (x,y) of towers connected by a wall to the tower at (ax,ay).
+func (g *Game) GetWallsForTower(ax, ay int) [][2]int {
+	var out [][2]int
+	for _, w := range g.Walls {
+		if w.Ax == ax && w.Ay == ay {
+			out = append(out, [2]int{w.Bx, w.By})
+		} else if w.Bx == ax && w.By == ay {
+			out = append(out, [2]int{w.Ax, w.Ay})
+		}
+	}
+	return out
+}
+
+// RemoveWall removes the wall between (ax,ay) and (bx,by). Returns true if a wall was removed.
+func (g *Game) RemoveWall(ax, ay, bx, by int) bool {
+	for i, w := range g.Walls {
+		if (w.Ax == ax && w.Ay == ay && w.Bx == bx && w.By == by) || (w.Ax == bx && w.Ay == by && w.Bx == ax && w.By == ay) {
+			g.Walls = append(g.Walls[:i], g.Walls[i+1:]...)
+			g.RecomputeFlow()
+			log.Printf("DEBUG: Wall removed (%d,%d)-(%d,%d)", ax, ay, bx, by)
+			return true
+		}
+	}
+	return false
+}
+
+const sellRefundPercent = 50
+
+// SellTower removes the tower at (x,y), refunds part of cost, and removes any walls using it. Returns true if sold.
+func (g *Game) SellTower(x, y int) bool {
+	tower := g.GetTowerAt(x, y)
+	if tower == nil {
+		return false
+	}
+	templates := GetTowerTemplates()
+	template, ok := templates[tower.Type]
+	if !ok {
+		template = TowerTemplate{Cost: 50}
+	}
+	refund := (template.Cost * sellRefundPercent) / 100
+	g.Money += refund
+
+	var newWalls []Wall
+	for _, w := range g.Walls {
+		if (w.Ax == x && w.Ay == y) || (w.Bx == x && w.By == y) {
+			continue
+		}
+		newWalls = append(newWalls, w)
+	}
+	g.Walls = newWalls
+
+	for i := range g.Towers {
+		if g.Towers[i].X == x && g.Towers[i].Y == y {
+			g.Towers = append(g.Towers[:i], g.Towers[i+1:]...)
+			break
+		}
+	}
+	g.RecomputeFlow()
+	log.Printf("DEBUG: Tower sold at (%d,%d), refund %d", x, y, refund)
+	return true
+}
+
+// AddWall links two towers with a wall; path tiles on the segment become blocked. Returns false if invalid.
+func (g *Game) AddWall(ax, ay, bx, by int) bool {
+	if ax == bx && ay == by {
+		return false
+	}
+	if g.GetTowerAt(ax, ay) == nil || g.GetTowerAt(bx, by) == nil {
+		log.Printf("DEBUG: AddWall: both cells must have towers")
+		return false
+	}
+	dx := ax - bx
+	if dx < 0 {
+		dx = -dx
+	}
+	dy := ay - by
+	if dy < 0 {
+		dy = -dy
+	}
+	if dx+dy > maxWallLinkDist {
+		log.Printf("DEBUG: AddWall: towers too far (max %d)", maxWallLinkDist)
+		return false
+	}
+	for _, w := range g.Walls {
+		if (w.Ax == ax && w.Ay == ay && w.Bx == bx && w.By == by) || (w.Ax == bx && w.Ay == by && w.Bx == ax && w.By == ay) {
+			log.Printf("DEBUG: AddWall: wall already exists")
+			return false
+		}
+	}
+	if g.WouldDisconnectSpawnsFromBase(ax, ay, bx, by) {
+		log.Printf("DEBUG: AddWall: would block only path to base, rejected")
+		return false
+	}
+	g.Walls = append(g.Walls, Wall{Ax: ax, Ay: ay, Bx: bx, By: by})
+	g.RecomputeFlow()
+	log.Printf("DEBUG: Wall added (%d,%d)-(%d,%d)", ax, ay, bx, by)
+	return true
+}
+
+// WouldDisconnectSpawnsFromBase returns true if adding a wall from (ax,ay) to (bx,by) would leave any spawn with no path to base.
+func (g *Game) WouldDisconnectSpawnsFromBase(ax, ay, bx, by int) bool {
+	if g.Map == nil || len(g.Map.Spawns) == 0 {
+		return false
+	}
+	blocked := g.ComputeBlockedTiles()
+	seen := make(map[[2]int]bool)
+	for _, p := range blocked {
+		seen[p] = true
+	}
+	for _, p := range mapdata.TilesOnSegment(ax, ay, bx, by) {
+		x, y := p[0], p[1]
+		if x < 0 || x >= g.Grid.Width || y < 0 || y >= g.Grid.Height {
+			continue
+		}
+		if g.Grid.Tiles[y][x] != mapdata.PathTile {
+			continue
+		}
+		if !seen[[2]int{x, y}] {
+			seen[[2]int{x, y}] = true
+			blocked = append(blocked, [2]int{x, y})
+		}
+	}
+	walkable := flow.BuildWalkabilityWithBlocked(g.Grid, blocked)
+	testField := flow.Compute(g.Grid.Width, g.Grid.Height, walkable, g.Base.X, g.Base.Y)
+	for _, spawn := range g.Map.Spawns {
+		dist, _ := testField.At(spawn.X, spawn.Y)
+		if dist >= flow.Inf {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *Game) isEnemyInRange(tower *entities.Tower, enemy *entities.Enemy) bool {

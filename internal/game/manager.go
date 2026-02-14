@@ -29,6 +29,8 @@ type GameManager struct {
 
 	SelectedTowerX int
 	SelectedTowerY int
+	SelectingWallTarget    bool
+	SelectingWallRemoveTarget bool
 
 	CurrentWave int
 	TotalWaves  int
@@ -113,6 +115,8 @@ func (m *GameManager) Reset() {
 	m.Mode = ModeNormal
 	m.SelectedTowerX = -1
 	m.SelectedTowerY = -1
+	m.SelectingWallTarget = false
+	m.SelectingWallRemoveTarget = false
 	m.CurrentWave = 0
 	m.RunTime = 0
 	m.InterWaveTimer = m.InterWaveDelay
