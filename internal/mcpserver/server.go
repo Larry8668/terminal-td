@@ -50,7 +50,7 @@ func NewServer() *mcp.Server {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "simulate_run",
-		Description: "Runs a headless simulation of a map+waves to check difficulty. NOT IMPLEMENTED YET (lands in a future phase) — currently returns a structured placeholder result.",
+		Description: "Runs a fast, deterministic headless simulation of a map+waves pair with a scripted bot (none|greedy) to check difficulty, without needing a human to play it. Returns outcome (won/lost/timeout), per-wave kills/leaks, and other stats. See get_game_rules' difficulty_guidance for target numbers.",
 	}, simulateRun)
 
 	mcp.AddTool(server, &mcp.Tool{
