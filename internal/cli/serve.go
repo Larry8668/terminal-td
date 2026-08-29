@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"golang.org/x/term"
 
 	"terminal-td/internal/applog"
 	"terminal-td/internal/mcpserver"
@@ -18,7 +19,18 @@ import (
 // RunServe starts the MCP server over stdio. Nothing may ever be written to
 // stdout here except MCP protocol traffic, so logging is routed to a session
 // log file (same mechanism the play flow uses), never to stdout/stderr.
+//
+// If stdin is an interactive terminal, this was almost certainly run by a
+// human directly rather than spawned by an MCP client (a real client
+// connects via a pipe, not a TTY) — in that case, skip starting the server
+// entirely and print setup guidance instead, so a first-time user isn't left
+// staring at a silently hanging terminal.
 func RunServe(args []string) int {
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		fmt.Fprint(os.Stderr, mcpSetupHelp(resolveBinaryPath()))
+		return 0
+	}
+
 	f, err := applog.InitSessionLog()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "terminal-td serve: failed to init session log: %v\n", err)
