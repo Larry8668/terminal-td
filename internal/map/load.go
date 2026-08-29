@@ -27,6 +27,27 @@ func LoadMapFile(path string) (*GameMap, error) {
 	return LoadMap(f)
 }
 
+// LoadMapDef builds a GameMap directly from an already-decoded MapDef,
+// running the exact same validation as LoadMap/LoadMapBytes. Useful when the
+// definition arrives as a Go struct rather than raw JSON (e.g. an MCP tool
+// input), so callers don't need to marshal/unmarshal just to validate it.
+func LoadMapDef(def *MapDef) (*GameMap, error) {
+	return buildGameMap(def)
+}
+
+// LoadMapDefBytes decodes map JSON into a raw MapDef without building a
+// GameMap (no validation). Unlike GameMap, a MapDef preserves every path
+// entry exactly as authored — including fork branches that share a spawn_id —
+// so it's what callers should return when the *original* JSON matters (e.g.
+// the MCP get_map tool), rather than the runtime-flattened GameMap.
+func LoadMapDefBytes(data []byte) (*MapDef, error) {
+	var def MapDef
+	if err := json.Unmarshal(data, &def); err != nil {
+		return nil, fmt.Errorf("map decode: %w", err)
+	}
+	return &def, nil
+}
+
 func buildGameMap(def *MapDef) (*GameMap, error) {
 	if def.Grid.Width <= 0 || def.Grid.Height <= 0 {
 		return nil, fmt.Errorf("invalid grid size %dx%d", def.Grid.Width, def.Grid.Height)

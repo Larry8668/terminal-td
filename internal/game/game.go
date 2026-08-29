@@ -600,7 +600,11 @@ func (g *Game) RecomputeFlow() {
 	log.Printf("DEBUG: Flow recomputed (blocked tiles: %d)", len(blocked))
 }
 
-const maxWallLinkDist = 4
+// MaxWallLinkDist is the maximum Manhattan distance between two towers for a
+// wall to link them. Exported so callers outside this package (e.g. the MCP
+// server's get_game_rules tool) can document the exact same value instead of
+// duplicating the magic number.
+const MaxWallLinkDist = 4
 
 // GetLinkableTowers returns positions (x,y) of towers that can form a wall with the tower at (ax,ay). Order is stable for HUD numbering.
 func (g *Game) GetLinkableTowers(ax, ay int) [][2]int {
@@ -618,7 +622,7 @@ func (g *Game) GetLinkableTowers(ax, ay int) [][2]int {
 		if dy < 0 {
 			dy = -dy
 		}
-		if dx+dy > maxWallLinkDist {
+		if dx+dy > MaxWallLinkDist {
 			continue
 		}
 		exists := false
@@ -661,7 +665,9 @@ func (g *Game) RemoveWall(ax, ay, bx, by int) bool {
 	return false
 }
 
-const sellRefundPercent = 50
+// SellRefundPercent is the fraction of a tower's cost refunded when sold.
+// Exported for the same reason as MaxWallLinkDist above.
+const SellRefundPercent = 50
 
 // SellTower removes the tower at (x,y), refunds part of cost, and removes any walls using it. Returns true if sold.
 func (g *Game) SellTower(x, y int) bool {
@@ -674,7 +680,7 @@ func (g *Game) SellTower(x, y int) bool {
 	if !ok {
 		template = TowerTemplate{Cost: 50}
 	}
-	refund := (template.Cost * sellRefundPercent) / 100
+	refund := (template.Cost * SellRefundPercent) / 100
 	g.Money += refund
 
 	var newWalls []Wall
@@ -714,8 +720,8 @@ func (g *Game) AddWall(ax, ay, bx, by int) bool {
 	if dy < 0 {
 		dy = -dy
 	}
-	if dx+dy > maxWallLinkDist {
-		log.Printf("DEBUG: AddWall: towers too far (max %d)", maxWallLinkDist)
+	if dx+dy > MaxWallLinkDist {
+		log.Printf("DEBUG: AddWall: towers too far (max %d)", MaxWallLinkDist)
 		return false
 	}
 	for _, w := range g.Walls {

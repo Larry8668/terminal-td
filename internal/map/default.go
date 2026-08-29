@@ -17,11 +17,24 @@ const (
 	SourceUser    = "user"
 )
 
-// MapInfo holds map metadata for selection.
+// MapInfo holds map metadata for selection and for the MCP list_maps tool.
 type MapInfo struct {
-	ID     string
-	Name   string
-	Source string // SourceBuiltin or SourceUser
+	ID         string
+	Name       string
+	Source     string // SourceBuiltin or SourceUser
+	Grid       GridDef
+	SpawnCount int
+}
+
+// InfoFromMap extracts MapInfo summary fields from a loaded GameMap.
+func InfoFromMap(m *GameMap, source string) MapInfo {
+	return MapInfo{
+		ID:         m.ID,
+		Name:       m.Name,
+		Source:     source,
+		Grid:       GridDef{Width: m.Grid.Width, Height: m.Grid.Height},
+		SpawnCount: len(m.Spawns),
+	}
 }
 
 // ListMaps returns all available embedded maps.
@@ -43,13 +56,15 @@ func ListMaps() ([]MapInfo, error) {
 		if err != nil {
 			continue
 		}
-		maps = append(maps, MapInfo{ID: m.ID, Name: m.Name, Source: SourceBuiltin})
+		maps = append(maps, InfoFromMap(m, SourceBuiltin))
 	}
 	return maps, nil
 }
 
-// LoadMapByID loads a map by its ID from embedded maps.
-func LoadMapByID(id string) (*GameMap, error) {
+// embeddedMapFile returns the raw JSON bytes of the embedded map whose "id"
+// field matches id, or an error if none match. Shared by LoadMapByID and
+// LoadMapDefByID so the embed directory is only walked in one place.
+func embeddedMapFile(id string) ([]byte, error) {
 	entries, err := defaultMapFS.ReadDir("data")
 	if err != nil {
 		return nil, fmt.Errorf("read maps dir: %w", err)
@@ -62,15 +77,34 @@ func LoadMapByID(id string) (*GameMap, error) {
 		if err != nil {
 			continue
 		}
-		m, err := LoadMapBytes(data)
+		def, err := LoadMapDefBytes(data)
 		if err != nil {
 			continue
 		}
-		if m.ID == id {
-			return m, nil
+		if def.ID == id {
+			return data, nil
 		}
 	}
 	return nil, fmt.Errorf("map %q not found", id)
+}
+
+// LoadMapByID loads a map by its ID from embedded maps.
+func LoadMapByID(id string) (*GameMap, error) {
+	data, err := embeddedMapFile(id)
+	if err != nil {
+		return nil, err
+	}
+	return LoadMapBytes(data)
+}
+
+// LoadMapDefByID returns the raw MapDef (not a built GameMap) for an embedded
+// map id, preserving every authored path entry — see LoadMapDefBytes.
+func LoadMapDefByID(id string) (*MapDef, error) {
+	data, err := embeddedMapFile(id)
+	if err != nil {
+		return nil, err
+	}
+	return LoadMapDefBytes(data)
 }
 
 // DefaultMap returns the built-in classic map (same layout as legacy hardcoded map).

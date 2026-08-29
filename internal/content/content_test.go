@@ -149,6 +149,45 @@ func TestSaveWavesValidatesAgainstMapSpawns(t *testing.T) {
 	}
 }
 
+func TestDeleteMapRemovesMapAndWaves(t *testing.T) {
+	isolateConfigDir(t)
+
+	def := testMapDef("smoke-delete-map")
+	if _, err := SaveMap(def, false); err != nil {
+		t.Fatalf("SaveMap: %v", err)
+	}
+	w := []waves.WaveDef{{Wave: 1, Groups: []waves.SpawnGroupDef{
+		{SpawnID: "s1", EnemyType: "basic", Count: 1, Interval: 1.0},
+	}}}
+	if _, err := SaveWaves(def.ID, w); err != nil {
+		t.Fatalf("SaveWaves: %v", err)
+	}
+
+	if err := DeleteMap(def.ID); err != nil {
+		t.Fatalf("DeleteMap: %v", err)
+	}
+
+	if _, err := LoadMapByID(def.ID); err == nil {
+		t.Fatal("expected LoadMapByID to fail after DeleteMap (no built-in fallback for this id)")
+	}
+
+	wavesDir, err := WavesDir()
+	if err != nil {
+		t.Fatalf("WavesDir: %v", err)
+	}
+	if _, err := os.Stat(wavesDir + "/" + def.ID + ".json"); !os.IsNotExist(err) {
+		t.Fatalf("expected waves override to be deleted alongside the map, stat err = %v", err)
+	}
+}
+
+func TestDeleteMapRefusesBuiltin(t *testing.T) {
+	isolateConfigDir(t)
+
+	if err := DeleteMap("classic"); err == nil {
+		t.Fatal("expected DeleteMap to refuse deleting a built-in map id")
+	}
+}
+
 func readDirNames(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
