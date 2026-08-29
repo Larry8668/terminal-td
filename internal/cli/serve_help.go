@@ -1,6 +1,47 @@
 package cli
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+)
+
+// resolveBinaryPath returns the path to show in mcpSetupHelp for "command".
+//
+// os.Executable() alone isn't quite enough: package managers like Homebrew
+// run the binary through a stable symlink (e.g. /opt/homebrew/bin/terminal-td)
+// that points into a versioned install directory (e.g.
+// .../Cellar/terminal-td/1.2.3/bin/terminal-td). Per the os.Executable docs,
+// which path it returns in that case is OS-dependent — if it resolves
+// through to the versioned directory, a config a user saved today would
+// silently break on their next `brew upgrade`. Prefer the stable,
+// PATH-discoverable location when one exists and actually points at the
+// same binary; only fall back to whatever os.Executable reported otherwise.
+func resolveBinaryPath() string {
+	execPath, err := os.Executable()
+	if err != nil {
+		return "/path/to/terminal-td"
+	}
+
+	base := filepath.Base(execPath)
+	if onPath, err := exec.LookPath(base); err == nil && sameFile(onPath, execPath) {
+		return onPath
+	}
+	return execPath
+}
+
+// sameFile reports whether a and b resolve (through any symlinks) to the
+// same underlying file. Used to confirm a PATH match isn't a coincidentally
+// same-named, unrelated binary before preferring it.
+func sameFile(a, b string) bool {
+	resolvedA, errA := filepath.EvalSymlinks(a)
+	resolvedB, errB := filepath.EvalSymlinks(b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	return resolvedA == resolvedB
+}
 
 // mcpToolNames lists the tools a correctly-connected client should see.
 // Kept here (not imported from internal/mcpserver) so this help text has no

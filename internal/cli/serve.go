@@ -27,11 +27,7 @@ import (
 // staring at a silently hanging terminal.
 func RunServe(args []string) int {
 	if term.IsTerminal(int(os.Stdin.Fd())) {
-		binaryPath, err := os.Executable()
-		if err != nil {
-			binaryPath = "/path/to/terminal-td"
-		}
-		fmt.Fprint(os.Stderr, mcpSetupHelp(binaryPath))
+		fmt.Fprint(os.Stderr, mcpSetupHelp(resolveBinaryPath()))
 		return 0
 	}
 
