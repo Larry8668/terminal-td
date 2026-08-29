@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
-	"terminal-td/internal/game"
+	"terminal-td/internal/buildinfo"
 	mapdata "terminal-td/internal/map"
 )
 
@@ -34,7 +34,7 @@ func DrawMainMenu(screen tcell.Screen, selectedOption MenuOption, updateAvailabl
 	drawText(screen, titleX, h/2-8, greenStyle, title)
 
 	// Version
-	version := fmt.Sprintf("Version %s", game.Version)
+	version := fmt.Sprintf("Version %s", buildinfo.Version)
 	versionX := (w - len(version)) / 2
 	drawText(screen, versionX, h/2-6, cyanStyle, version)
 

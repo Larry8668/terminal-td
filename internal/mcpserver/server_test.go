@@ -8,6 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"terminal-td/internal/buildinfo"
 	"terminal-td/internal/game"
 	mapdata "terminal-td/internal/map"
 	"terminal-td/internal/sim"
@@ -91,8 +92,8 @@ func TestGetGameRules(t *testing.T) {
 	if res.IsError {
 		t.Fatalf("get_game_rules returned an error result: %+v", res.Content)
 	}
-	if out.GameVersion != game.Version {
-		t.Fatalf("game_version = %q, want %q", out.GameVersion, game.Version)
+	if out.GameVersion != buildinfo.Version {
+		t.Fatalf("game_version = %q, want %q", out.GameVersion, buildinfo.Version)
 	}
 	if len(out.Towers) == 0 {
 		t.Fatal("expected at least one tower rule")

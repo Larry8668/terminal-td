@@ -3,11 +3,11 @@ package cli
 import (
 	"fmt"
 
-	"terminal-td/internal/game"
+	"terminal-td/internal/buildinfo"
 )
 
 // RunVersion prints the running build's version to stdout.
 func RunVersion(args []string) int {
-	fmt.Println(game.Version)
+	fmt.Println(buildinfo.Version)
 	return 0
 }

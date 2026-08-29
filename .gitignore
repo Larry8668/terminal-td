@@ -2,5 +2,6 @@
 terminal-td
 debug.log
 builds/
+dist/
 .DS_Store
 test-server/

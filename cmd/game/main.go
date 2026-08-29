@@ -10,6 +10,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"terminal-td/internal/applog"
+	"terminal-td/internal/buildinfo"
 	"terminal-td/internal/cli"
 	"terminal-td/internal/config"
 	"terminal-td/internal/content"
@@ -39,7 +40,7 @@ func main() {
 	} else {
 		defer f.Close()
 		log.SetOutput(f)
-		log.Printf("=== Terminal Tower Defense %s ===", game.Version)
+		log.Printf("=== Terminal Tower Defense %s (channel=%s) ===", buildinfo.Version, buildinfo.Channel)
 		log.Println("Debug logging initialized")
 	}
 
@@ -70,7 +71,7 @@ func main() {
 		release, err := updater.FetchLatest(updater.DefaultOwner, updater.DefaultRepo)
 		if err != nil {
 			log.Printf("check for update: %v", err)
-		} else if updater.IsNewer(game.Version, release.TagName) {
+		} else if updater.IsNewer(buildinfo.Version, release.TagName) {
 			updateAvailable = true
 			latestVersion = release.TagName
 			latestRelease = release
