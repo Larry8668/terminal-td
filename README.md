@@ -4,13 +4,45 @@ A terminal-based tower defense game built with Go and tcell.
 
 ![Preview](images/preview.png)
 
-> 🚧 **macOS:** Downloaded binaries may be blocked by Gatekeeper ("cannot be opened" / "not verified").  
-> The app is unsigned (code signing requires a paid Apple Developer account). You can:
->
-> 1. On Terminal: `xattr -d com.apple.quarantine terminal-td-v0.1.0-darwin-arm64` (use the actual path and filename).
-> 2. Or **build from source:** `./build.sh mac-arm` then run the binary from the `builds/` folder.
+## Install 📦
 
-## Quick Start ⚡
+### Option 1: Homebrew (macOS, recommended)
+
+```bash
+brew tap Larry8668/terminal-td
+brew install --cask terminal-td
+```
+
+If Homebrew refuses the tap with an "untrusted tap" error, trust it first
+(a one-time step Homebrew requires for third-party taps in general, not
+specific to this project) and re-run the install:
+
+```bash
+brew trust larry8668/terminal-td
+```
+
+Homebrew installs are unaffected by the Gatekeeper warning below — the cask
+strips the quarantine flag automatically. Updates go through
+`brew upgrade --cask terminal-td` (the in-app updater is disabled for
+Homebrew installs).
+
+### Option 2: Download a prebuilt binary
+
+Grab the archive for your platform from the
+[Releases page](https://github.com/Larry8668/terminal-td/releases) (`.tar.gz`
+for macOS/Linux, `.zip` for Windows), extract it, and run the binary inside.
+
+> 🚧 **macOS:** a manually downloaded binary may be blocked by Gatekeeper
+> ("cannot be opened" / "not verified") since it's unsigned (code signing
+> requires a paid Apple Developer account). Fix it with:
+>
+> ```bash
+> xattr -d com.apple.quarantine /path/to/terminal-td
+> ```
+>
+> (use the actual extracted path). Not needed with the Homebrew install above.
+
+### Option 3: Build from source
 
 ```bash
 go run cmd/game/main.go
