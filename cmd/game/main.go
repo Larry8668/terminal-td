@@ -4,14 +4,15 @@ import (
 	"flag"
 	"log"
 	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
 
+	"terminal-td/internal/applog"
+	"terminal-td/internal/cli"
 	"terminal-td/internal/config"
+	"terminal-td/internal/content"
 	"terminal-td/internal/entities"
 	"terminal-td/internal/game"
 	mapdata "terminal-td/internal/map"
@@ -20,58 +21,19 @@ import (
 )
 
 const (
-	tickRate             = 100 * time.Millisecond
-	sessionLogPrefix     = "terminal-td-session-"
-	sessionLogSuffix     = ".log"
-	maxSessionLogs       = 5
-	sessionLogTimeFormat = "20060102-150405"
+	tickRate = 100 * time.Millisecond
 )
 
-func initSessionLog() (*os.File, error) {
-	dir, err := config.Dir()
-	if err != nil {
-		return nil, err
-	}
-	cleanupSessionLogs(dir)
-	name := sessionLogPrefix + time.Now().Format(sessionLogTimeFormat) + sessionLogSuffix
-	path := filepath.Join(dir, name)
-	f, err := os.Create(path)
-	if err != nil {
-		return nil, err
-	}
-	return f, nil
-}
-
-func cleanupSessionLogs(dir string) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return
-	}
-	var matches []string
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		n := e.Name()
-		if strings.HasPrefix(n, sessionLogPrefix) && strings.HasSuffix(n, sessionLogSuffix) {
-			matches = append(matches, n)
-		}
-	}
-	if len(matches) <= maxSessionLogs {
-		return
-	}
-	sort.Strings(matches)
-	for i := 0; i < len(matches)-maxSessionLogs; i++ {
-		_ = os.Remove(filepath.Join(dir, matches[i]))
-	}
-}
-
 func main() {
+	if handled, exitCode := cli.Dispatch(os.Args[1:]); handled {
+		os.Exit(exitCode)
+	}
+
 	justUpdated := flag.Bool("just-updated", false, "Show changelog after update")
 	changelogPath := flag.String("changelog", "", "Path to changelog file")
 	flag.Parse()
 
-	f, err := initSessionLog()
+	f, err := applog.InitSessionLog()
 	if err != nil {
 		log.Printf("ERROR: Failed to create session log: %v", err)
 	} else {
@@ -140,9 +102,9 @@ func main() {
 	showMapSelection := false
 	var availableMaps []mapdata.MapInfo
 	var mapSelectionIndex int
-	if maps, err := mapdata.ListMaps(); err != nil {
+	if maps, err := content.ListMaps(); err != nil {
 		log.Printf("load maps: %v", err)
-		availableMaps = []mapdata.MapInfo{{ID: "classic", Name: "Tutorial"}}
+		availableMaps = []mapdata.MapInfo{{ID: "classic", Name: "Tutorial", Source: mapdata.SourceBuiltin}}
 	} else {
 		availableMaps = maps
 	}
@@ -416,7 +378,7 @@ func main() {
 						if mapSelectionIndex >= 0 && mapSelectionIndex < len(availableMaps) {
 							selectedMapID := availableMaps[mapSelectionIndex].ID
 							log.Printf("DEBUG: Starting game with map %q", selectedMapID)
-							m, err := mapdata.LoadMapByID(selectedMapID)
+							m, err := content.LoadMapByID(selectedMapID)
 							if err != nil {
 								log.Printf("ERROR: Failed to load map %q: %v", selectedMapID, err)
 								m, _ = mapdata.DefaultMap()
@@ -541,7 +503,7 @@ func main() {
 							if mapSelectionIndex >= 0 && mapSelectionIndex < len(availableMaps) {
 								selectedMapID := availableMaps[mapSelectionIndex].ID
 								log.Printf("DEBUG: Starting game with map %q", selectedMapID)
-								m, err := mapdata.LoadMapByID(selectedMapID)
+								m, err := content.LoadMapByID(selectedMapID)
 								if err != nil {
 									log.Printf("ERROR: Failed to load map %q: %v", selectedMapID, err)
 									m, _ = mapdata.DefaultMap()

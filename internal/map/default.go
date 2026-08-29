@@ -10,10 +10,18 @@ import (
 //go:embed data/*.json
 var defaultMapFS embed.FS
 
+// Source values for MapInfo, distinguishing built-in (embedded) maps from
+// user-created ones layered in from the config dir (see internal/content).
+const (
+	SourceBuiltin = "builtin"
+	SourceUser    = "user"
+)
+
 // MapInfo holds map metadata for selection.
 type MapInfo struct {
-	ID   string
-	Name string
+	ID     string
+	Name   string
+	Source string // SourceBuiltin or SourceUser
 }
 
 // ListMaps returns all available embedded maps.
@@ -35,7 +43,7 @@ func ListMaps() ([]MapInfo, error) {
 		if err != nil {
 			continue
 		}
-		maps = append(maps, MapInfo{ID: m.ID, Name: m.Name})
+		maps = append(maps, MapInfo{ID: m.ID, Name: m.Name, Source: SourceBuiltin})
 	}
 	return maps, nil
 }

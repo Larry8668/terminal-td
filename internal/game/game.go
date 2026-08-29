@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"log"
+	"terminal-td/internal/content"
 	"terminal-td/internal/enemies"
 	"terminal-td/internal/entities"
 	"terminal-td/internal/flow"
@@ -66,7 +67,7 @@ func NewGameFromMap(m *mapdata.GameMap) *Game {
 		enemyDB = &enemies.EnemyDatabase{Enemies: make(map[string]enemies.EnemyDef)}
 	}
 
-	waveDefs, err := waves.LoadWavesForMap(m.ID)
+	waveDefs, err := content.LoadWavesForMap(m.ID)
 	if err != nil {
 		log.Printf("load waves for map %q: %v, trying fallback", m.ID, err)
 		waveDefs, err = waves.DefaultWaves()

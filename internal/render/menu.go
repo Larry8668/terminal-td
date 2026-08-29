@@ -327,6 +327,9 @@ func DrawMapSelection(screen tcell.Screen, maps []mapdata.MapInfo, selectedIndex
 			break
 		}
 		text := m.Name
+		if m.Source == mapdata.SourceUser {
+			text += " *"
+		}
 		style := whiteStyle
 		if i == selectedIndex {
 			style = yellowStyle
@@ -335,6 +338,19 @@ func DrawMapSelection(screen tcell.Screen, maps []mapdata.MapInfo, selectedIndex
 			drawText(screen, centerX-len(text)/2, row, style, text)
 		}
 		row += 2
+	}
+
+	hasUserMap := false
+	for _, m := range maps {
+		if m.Source == mapdata.SourceUser {
+			hasUserMap = true
+			break
+		}
+	}
+	if hasUserMap {
+		note := "* = your custom map"
+		noteX := (w - len(note)) / 2
+		drawText(screen, noteX, h-3, cyanStyle, note)
 	}
 
 	instructions := "Use ARROW KEYS or W/S to navigate, SPACE to select, ESC to cancel"
