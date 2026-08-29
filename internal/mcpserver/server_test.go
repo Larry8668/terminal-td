@@ -3,12 +3,14 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"terminal-td/internal/game"
 	mapdata "terminal-td/internal/map"
+	"terminal-td/internal/sim"
 	waves "terminal-td/internal/waves"
 )
 
@@ -229,16 +231,78 @@ func TestDeleteMapRefusesBuiltinOverMCP(t *testing.T) {
 	}
 }
 
-func TestSimulateRunStub(t *testing.T) {
+func TestSimulateRunNoneBotLoses(t *testing.T) {
+	isolateConfigDir(t)
 	session := connectTestClient(t)
-	out, res := callTool[SimulateRunOutput](t, session, "simulate_run", SimulateRunInput{MapID: "forks", Bot: "greedy"})
+
+	out, res := callTool[sim.Result](t, session, "simulate_run", SimulateRunInput{MapID: "forks", Bot: "none"})
 	if res.IsError {
 		t.Fatalf("simulate_run: %+v", res.Content)
 	}
-	if out.Implemented {
-		t.Fatal("expected implemented=false for the Phase C stub")
+	if out.Outcome != "lost" {
+		t.Fatalf("expected outcome=lost with bot=none (zero defense), got %q: %+v", out.Outcome, out)
 	}
-	if out.Message == "" {
-		t.Fatal("expected a non-empty explanatory message")
+	if out.WavesTotal == 0 {
+		t.Fatal("expected a non-zero waves_total")
+	}
+	if len(out.PathLengths) == 0 {
+		t.Fatal("expected non-empty path_lengths")
+	}
+}
+
+func TestSimulateRunGreedyBotBeatsNoneBot(t *testing.T) {
+	isolateConfigDir(t)
+	session := connectTestClient(t)
+
+	none, res := callTool[sim.Result](t, session, "simulate_run", SimulateRunInput{MapID: "forks", Bot: "none"})
+	if res.IsError {
+		t.Fatalf("simulate_run(none): %+v", res.Content)
+	}
+	greedy, res := callTool[sim.Result](t, session, "simulate_run", SimulateRunInput{MapID: "forks", Bot: "greedy"})
+	if res.IsError {
+		t.Fatalf("simulate_run(greedy): %+v", res.Content)
+	}
+	if greedy.WavesSurvived < none.WavesSurvived {
+		t.Fatalf("expected greedy bot to survive at least as many waves as none bot; none=%d greedy=%d", none.WavesSurvived, greedy.WavesSurvived)
+	}
+	if greedy.TowersPlaced == 0 {
+		t.Fatal("expected greedy bot to place at least one tower")
+	}
+}
+
+func TestSimulateRunDeterministic(t *testing.T) {
+	isolateConfigDir(t)
+	session := connectTestClient(t)
+
+	first, res := callTool[sim.Result](t, session, "simulate_run", SimulateRunInput{MapID: "forks", Bot: "greedy"})
+	if res.IsError {
+		t.Fatalf("simulate_run (first): %+v", res.Content)
+	}
+	second, res := callTool[sim.Result](t, session, "simulate_run", SimulateRunInput{MapID: "forks", Bot: "greedy"})
+	if res.IsError {
+		t.Fatalf("simulate_run (second): %+v", res.Content)
+	}
+	if !reflect.DeepEqual(first, second) {
+		t.Fatalf("expected identical results for identical inputs, got:\nfirst:  %+v\nsecond: %+v", first, second)
+	}
+}
+
+func TestSimulateRunRejectsBadBotName(t *testing.T) {
+	isolateConfigDir(t)
+	session := connectTestClient(t)
+
+	_, res := callTool[sim.Result](t, session, "simulate_run", SimulateRunInput{MapID: "forks", Bot: "nonsense"})
+	if !res.IsError {
+		t.Fatal("expected simulate_run to reject an unknown bot strategy")
+	}
+}
+
+func TestSimulateRunRejectsUnknownMap(t *testing.T) {
+	isolateConfigDir(t)
+	session := connectTestClient(t)
+
+	_, res := callTool[sim.Result](t, session, "simulate_run", SimulateRunInput{MapID: "does-not-exist", Bot: "none"})
+	if !res.IsError {
+		t.Fatal("expected simulate_run to reject an unknown map id")
 	}
 }

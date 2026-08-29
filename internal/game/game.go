@@ -44,6 +44,14 @@ type Game struct {
 
 	CursorX int
 	CursorY int
+
+	// OnEnemyKilled and OnEnemyLeaked are optional, nil-safe hooks fired
+	// whenever an enemy dies to a projectile or reaches the base,
+	// respectively. Normal play never sets them (zero behavior change);
+	// internal/sim uses them to build per-wave kill/leak counts headlessly
+	// without polling engine internals every tick.
+	OnEnemyKilled func(e *entities.Enemy)
+	OnEnemyLeaked func(e *entities.Enemy)
 }
 
 // NewGame loads the default map and returns a Game. Use NewGameFromMap for custom maps.
@@ -324,6 +332,9 @@ func (g *Game) updateEnemies(dt float64) {
 				g.Wave.EnemiesAlive--
 			} else {
 				g.LegacyWave.EnemiesAlive--
+			}
+			if g.OnEnemyLeaked != nil {
+				g.OnEnemyLeaked(e)
 			}
 			log.Printf("DEBUG: Enemy reached base at (%.1f,%.1f) Base HP: %d Enemies alive: %d", e.X, e.Y, g.Base.HP, g.GetEnemiesAlive())
 			if g.Base.HP <= 0 {
@@ -852,6 +863,10 @@ func (g *Game) updateProjectiles(dt float64) {
 					}
 					g.Money += reward
 					g.Score.Points += reward
+					g.Score.EnemiesKilled++
+					if g.OnEnemyKilled != nil {
+						g.OnEnemyKilled(proj.TargetEnemy)
+					}
 				}
 			}
 			continue
