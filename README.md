@@ -78,8 +78,8 @@ GOOS=darwin GOARCH=amd64 go build -o terminal-td cmd/game/main.go
 
 Or use the [build script](build.sh) to build for all platforms.
 
-**Build script:** `./build.sh [platform]` produces versioned folders and zips in `builds/` (e.g. `terminal-td-v0.1.2-windows-amd64/` and `terminal-td-v0.1.2-windows-amd64.zip`). Each folder/zip contains the game binary, `terminal-td-updater`, and `readme.txt`. Default `all`; use `./build.sh --help` for options.
+**Build script:** `./build.sh [platform]` produces versioned folders and zips in `builds/` (e.g. `terminal-td-v0.1.2-windows-amd64/` and `terminal-td-v0.1.2-windows-amd64.zip`). Each folder/zip contains the game binary and `readme.txt`. Default `all`; use `./build.sh --help` for options. This is a manual/legacy path -- tagged releases are built and published by [GoReleaser](.goreleaser.yaml) via CI (see `.github/workflows/release.yml`), which also updates the Homebrew cask.
 
-**Auto-update:** With "Check for updates" on in Settings, the game notifies when a newer release exists. Choosing "Update available" downloads the zip for the current platform, extracts it, replaces the game and updater, then restarts.
+**Auto-update:** With "Check for updates" on in Settings, the game notifies when a newer GitHub release exists. Choosing "Update available" downloads the archive for the current platform, extracts it, and replaces the running binary in place; reopen the game afterward to run the new version. Installs via Homebrew skip this entirely -- `brew upgrade --cask terminal-td` is the update path there instead.
 
 ---

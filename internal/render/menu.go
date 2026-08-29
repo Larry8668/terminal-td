@@ -123,7 +123,11 @@ func MaxMenuOption(updateAvailable bool) MenuOption {
 	return MenuChangelog + 1 // Quit is at index 4 when update row is hidden
 }
 
-func DrawSettings(screen tcell.Screen, checkForUpdates bool) {
+// DrawSettings renders the settings screen. When isHomebrew is true, the
+// "check for updates" toggle is replaced with a note that brew manages
+// updates for this install -- the in-app updater is disabled in that case
+// (see buildinfo.IsHomebrew), so showing a toggle for it would be misleading.
+func DrawSettings(screen tcell.Screen, checkForUpdates bool, isHomebrew bool) {
 	w, h := screen.Size()
 
 	whiteStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite)
@@ -135,13 +139,20 @@ func DrawSettings(screen tcell.Screen, checkForUpdates bool) {
 	titleX := (w - len(title)) / 2
 	drawText(screen, titleX, h/2-6, greenStyle, title)
 
-	label := "Check for updates (notified when update is available):"
-	drawText(screen, w/2-len(label)/2, h/2-3, whiteStyle, label)
-	value := "OFF"
-	if checkForUpdates {
-		value = "ON"
+	if isHomebrew {
+		line1 := "Installed via Homebrew -- updates are managed by brew."
+		drawText(screen, w/2-len(line1)/2, h/2-3, whiteStyle, line1)
+		line2 := "Run: brew upgrade --cask terminal-td"
+		drawText(screen, w/2-len(line2)/2, h/2-1, yellowStyle, line2)
+	} else {
+		label := "Check for updates (notified when update is available):"
+		drawText(screen, w/2-len(label)/2, h/2-3, whiteStyle, label)
+		value := "OFF"
+		if checkForUpdates {
+			value = "ON"
+		}
+		drawText(screen, w/2-len(value)/2, h/2-1, yellowStyle, value)
 	}
-	drawText(screen, w/2-len(value)/2, h/2-1, yellowStyle, value)
 
 	helpText := "Press ESC to return to menu"
 	drawText(screen, (w-len(helpText))/2, h/2+2, cyanStyle, helpText)

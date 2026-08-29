@@ -27,13 +27,39 @@ builds:
     ldflags:
       - -s -w -X terminal-td/internal/buildinfo.Version={{ .Version }} -X terminal-td/internal/buildinfo.Channel=github
 
+  # Separate darwin-only build purely so the Homebrew cask gets
+  # Channel=homebrew baked in via ldflags at build time (the "belt" half of
+  # buildinfo.IsHomebrew's belt-and-suspenders check; the path heuristic is
+  # the "suspenders" fallback). Never uploaded to the GitHub release as a
+  # standalone download -- see the homebrew_casks.ids restriction below.
+  - id: terminal-td-homebrew
+    main: ./cmd/game
+    binary: terminal-td
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X terminal-td/internal/buildinfo.Version={{ .Version }} -X terminal-td/internal/buildinfo.Channel=homebrew
+
 archives:
   - id: terminal-td
+    ids:
+      - terminal-td
     name_template: "terminal-td_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats: ["tar.gz"]
     format_overrides:
       - goos: windows
         formats: ["zip"]
+
+  - id: terminal-td-homebrew
+    ids:
+      - terminal-td-homebrew
+    name_template: "terminal-td-homebrew_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: ["tar.gz"]
 
 checksum:
   name_template: "checksums.txt"
@@ -47,6 +73,8 @@ changelog:
 
 homebrew_casks:
   - name: terminal-td
+    ids:
+      - terminal-td-homebrew
     binaries:
       - terminal-td
     repository:

@@ -58,6 +58,17 @@ func main() {
 		showChangelogScreen(screen, *changelogPath)
 	}
 
+	// A fresh process (this one) never holds a handle to a ".old" binary
+	// left behind by a previous in-app update, so it's always safe to
+	// clean one up here, on every startup, before anything else runs.
+	updater.CleanupOldBinary()
+
+	execPath, err := os.Executable()
+	if err != nil {
+		log.Printf("os.Executable: %v", err)
+	}
+	isHomebrew := buildinfo.IsHomebrew(execPath)
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Printf("config load: %v, using defaults", err)
@@ -67,7 +78,7 @@ func main() {
 	var updateAvailable bool
 	var latestVersion string
 	var latestRelease *updater.Release
-	if cfg.CheckForUpdates {
+	if cfg.CheckForUpdates && !isHomebrew {
 		release, err := updater.FetchLatest(updater.DefaultOwner, updater.DefaultRepo)
 		if err != nil {
 			log.Printf("check for update: %v", err)
@@ -77,6 +88,8 @@ func main() {
 			latestRelease = release
 			log.Printf("Update available: %s", latestVersion)
 		}
+	} else if isHomebrew {
+		log.Println("Homebrew install detected: in-app update check skipped, brew manages updates")
 	}
 
 	g := game.NewGame()
@@ -115,9 +128,11 @@ func main() {
 			return false
 		}
 		if showSettings {
-			cfg.CheckForUpdates = !cfg.CheckForUpdates
-			if err := config.Save(cfg); err != nil {
-				log.Printf("config save: %v", err)
+			if !isHomebrew {
+				cfg.CheckForUpdates = !cfg.CheckForUpdates
+				if err := config.Save(cfg); err != nil {
+					log.Printf("config save: %v", err)
+				}
 			}
 			return false
 		}
@@ -194,7 +209,7 @@ func main() {
 				} else if showMapSelection {
 					render.DrawMapSelection(screen, availableMaps, mapSelectionIndex)
 				} else if showSettings {
-					render.DrawSettings(screen, cfg.CheckForUpdates)
+					render.DrawSettings(screen, cfg.CheckForUpdates, isHomebrew)
 				} else if showControls {
 					render.DrawControls(screen)
 				} else if showChangelog {
