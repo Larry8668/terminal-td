@@ -10,6 +10,7 @@ import (
 
 	_ "embed"
 
+	"terminal-td/internal/buildinfo"
 	"terminal-td/internal/enemies"
 	"terminal-td/internal/entities"
 	"terminal-td/internal/game"
@@ -146,7 +147,7 @@ func getGameRules(_ context.Context, _ *mcp.CallToolRequest, _ GetGameRulesInput
 	}
 
 	out := GetGameRulesOutput{
-		GameVersion: game.Version,
+		GameVersion: buildinfo.Version,
 		Tiles: []TileRule{
 			{Tile: "empty", Description: "Buildable ground. Towers can be placed here; enemies never walk on it."},
 			{Tile: "path", Description: "Enemies walk here toward the base, following the shortest route (flow field). Cannot build a tower here. Can be blocked by a wall between two towers, as long as at least one route from every spawn to the base remains open."},

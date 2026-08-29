@@ -1,0 +1,102 @@
+version: 2
+
+project_name: terminal-td
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: terminal-td
+    main: ./cmd/game
+    binary: terminal-td
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+      - goos: linux
+        goarch: arm64
+    ldflags:
+      - -s -w -X terminal-td/internal/buildinfo.Version={{ .Version }} -X terminal-td/internal/buildinfo.Channel=github
+
+  # Separate darwin-only build purely so the Homebrew cask gets
+  # Channel=homebrew baked in via ldflags at build time (the "belt" half of
+  # buildinfo.IsHomebrew's belt-and-suspenders check; the path heuristic is
+  # the "suspenders" fallback). Never uploaded to the GitHub release as a
+  # standalone download -- see the homebrew_casks.ids restriction below.
+  - id: terminal-td-homebrew
+    main: ./cmd/game
+    binary: terminal-td
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X terminal-td/internal/buildinfo.Version={{ .Version }} -X terminal-td/internal/buildinfo.Channel=homebrew
+
+archives:
+  - id: terminal-td
+    ids:
+      - terminal-td
+    name_template: "terminal-td_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: ["tar.gz"]
+    format_overrides:
+      - goos: windows
+        formats: ["zip"]
+
+  - id: terminal-td-homebrew
+    ids:
+      - terminal-td-homebrew
+    name_template: "terminal-td-homebrew_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: ["tar.gz"]
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+homebrew_casks:
+  - name: terminal-td
+    ids:
+      - terminal-td-homebrew
+    binaries:
+      - terminal-td
+    repository:
+      owner: Larry8668
+      name: homebrew-terminal-td
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
+    homepage: "https://github.com/Larry8668/terminal-td"
+    description: "Terminal-based tower defense game with an MCP server for AI-assisted map design"
+    caveats: "terminal-td needs a real terminal window (a GUI terminal app), not run from Finder. This is an unsigned binary; the postinstall hook strips the macOS quarantine flag automatically so Gatekeeper doesn't block it."
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/terminal-td"]
+          end
+
+release:
+  github:
+    owner: Larry8668
+    name: terminal-td

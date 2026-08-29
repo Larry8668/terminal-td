@@ -7,7 +7,7 @@ package mcpserver
 import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"terminal-td/internal/game"
+	"terminal-td/internal/buildinfo"
 )
 
 // NewServer builds an MCP server with every terminal-td tool registered.
@@ -15,7 +15,7 @@ import (
 func NewServer() *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "terminal-td",
-		Version: game.Version,
+		Version: buildinfo.Version,
 	}, nil)
 
 	mcp.AddTool(server, &mcp.Tool{
