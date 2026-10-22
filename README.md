@@ -1,6 +1,9 @@
 # Terminal Tower Defense 👾
 
-A terminal-based tower defense game built with Go and tcell.
+A terminal-based tower defense game built with Go and tcell. It also ships an
+[MCP](https://modelcontextprotocol.io) server, so an AI agent can design maps
+and waves over stdio and you play the result in the game. See **AI maps (MCP)**
+below.
 
 ![Preview](images/preview.png)
 
@@ -81,6 +84,84 @@ go build -o terminal-td cmd/game/main.go
 - Real-time range visualization
 - Economy system (earn money from kills)
 - Wave progression system
+- MCP server so an agent can author, check, and simulate custom maps
+
+## AI maps (MCP) 🤖
+
+`terminal-td serve` speaks the Model Context Protocol over **stdio**. Cursor,
+Claude Desktop, and other MCP clients launch that binary as a subprocess and
+talk to it on stdin and stdout. Typing `terminal-td serve` yourself prints
+setup help and exits: a real client connects through a pipe, so a keyboard
+session is treated as a mistake. While a client has the process open, stdout
+carries protocol traffic only. Logs go to `terminal-td-session-*.log` in the
+config directory below.
+
+### Connect it
+
+Use the installed binary (Homebrew or a release), or one you built with
+`go build -o terminal-td cmd/game/main.go`. Point the client at that path:
+
+```json
+{
+  "mcpServers": {
+    "terminal-td": {
+      "command": "terminal-td",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+- **Cursor:** `.cursor/mcp.json` in the project, or Cursor Settings → MCP.
+- **Claude Desktop:** `claude_desktop_config.json`.
+
+If `terminal-td` is not on the client's PATH, set `command` to the full path.
+A Homebrew install on Apple Silicon is usually
+`/opt/homebrew/bin/terminal-td`.
+
+You can also paste this to the assistant you already have open and let it
+write the config for whatever tool you're in:
+
+```text
+Set up a local MCP server for me:
+  command: terminal-td
+  args: ["serve"]
+
+Add it to this tool's MCP config, enable it, and list its tools.
+```
+
+A working connection exposes the eight tools below. Ask the agent to call
+`get_game_rules` before it designs anything. That call returns the tile,
+tower, enemy, and wall rules, the map and wave JSON shapes, and a difficulty
+target.
+
+### What it offers
+
+| Tool | What it does |
+| --- | --- |
+| `get_game_rules` | Rules manual and the JSON shapes for maps and waves. Call this first. |
+| `list_maps` | Every map, built-in and yours: id, name, source, grid size, spawn count. |
+| `get_map` | One map as authored, including fork paths, plus its waves. |
+| `validate_map` | Checks a map without saving it. Structure first, then that every spawn can reach the base. Returns `valid`, `errors`, `warnings`, and path lengths. An invalid map is a normal result. |
+| `create_map` | Validates and saves a map so it shows up in the game. Fails if the map is invalid. `overwrite: true` replaces a user map with the same id. |
+| `create_waves` | Validates and saves waves for a map id. Each group has to name a spawn that exists on that map. |
+| `simulate_run` | Headless, deterministic playthrough of a saved map. Pass `waves` to try a wave list without saving it; otherwise the map's own waves are used. `bot` is `none` (no towers) or `greedy`. `budget` of `0` means the game default of 500. A loss comes back as `outcome: "lost"`, which is a result, not a tool error. The same inputs always produce the same result. |
+| `delete_map` | Deletes a user map and its waves file. Built-in maps cannot be deleted. |
+
+Saved maps go under `maps/`, and waves under `waves/<map-id>.json`, inside
+the user config directory:
+
+- macOS: `~/Library/Application Support/terminal-td/`
+- Linux: `~/.config/terminal-td/` (or `$XDG_CONFIG_HOME/terminal-td`)
+- Windows: `%AppData%\terminal-td\`
+
+Open map select in the game and the new map is there, marked with `*`. A
+user map whose id matches a built-in one is the one you play; the built-in
+file is left in place. `delete_map` removes only that user copy.
+
+The agent writes the level, checks that every spawn still reaches the base,
+and simulates whether it is beatable. You play the saved map yourself. It
+does not drop a level into a match that is already running.
 
 ## Requirements 📝
 
